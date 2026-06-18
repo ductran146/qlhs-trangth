@@ -35,7 +35,7 @@ export function render(el, dataset) {
         <div class="form-row sm-dob-gender-row">
           <div class="form-group">
             <label class="form-label">Ngày sinh</label>
-            <input class="form-input" id="smDob" type="date">
+            <input class="form-input ds-date-input" id="smDob" type="text" inputmode="numeric" autocomplete="off" placeholder="dd/mm/yyyy">
           </div>
           <div class="form-group">
             <label class="form-label">Giới tính</label>
@@ -49,7 +49,7 @@ export function render(el, dataset) {
         <div class="form-row sm-start-status-row">
           <div class="form-group sm-start-date-group">
             <label class="form-label">Ngày bắt đầu học *</label>
-            <input class="form-input" id="smStartDate" type="date">
+            <input class="form-input ds-date-input" id="smStartDate" type="text" inputmode="numeric" autocomplete="off" placeholder="dd/mm/yyyy">
           </div>
           <div class="form-group sm-status-group is-edit-only" id="smStatusGroup" style="display:none">
             <label class="form-label">Trạng thái học sinh</label>
@@ -94,7 +94,7 @@ export function render(el, dataset) {
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">Giờ bắt đầu</label>
-            <input class="form-input" id="smTime" type="time" value="08:00">
+            <input class="form-input ds-time-input" id="smTime" type="text" inputmode="numeric" autocomplete="off" placeholder="HH:mm" value="08:00">
           </div>
           <div class="form-group">
             <label class="form-label">Số ca mỗi lịch học</label>
@@ -130,6 +130,7 @@ export function render(el, dataset) {
     if (e.target === el.querySelector('#studentModalOverlay')) close();
   });
   el.querySelector('#smSave').addEventListener('click', () => _save(el));
+  _bindDateTimeFields(el);
   _bindKeyboardAssist(el);
 
   // Expose open/close globally so pages can call them
@@ -157,14 +158,14 @@ function _open(el, id = null) {
   }
 
   el.querySelector('#smName').value    = st?.name    || '';
-  el.querySelector('#smDob').value     = st?.dob     || '';
+  el.querySelector('#smDob').value     = _formatDateForInput(st?.dob || '');
   el.querySelector('#smGender').value  = st?.gender  || 'Nam';
-  el.querySelector('#smStartDate').value = st?.startDate || todayStr();
+  el.querySelector('#smStartDate').value = _formatDateForInput(st?.startDate || todayStr());
   el.querySelector('#smStatus').value = st?.status || 'active';
   el.querySelector('#smGoal').value    = st?.goal    || '';
   el.querySelector('#smFatherName').value = st?.fatherName || '';
   el.querySelector('#smMotherName').value = st?.motherName || '';
-  el.querySelector('#smTime').value    = st?.schedTime || '08:00';
+  el.querySelector('#smTime').value    = _formatTimeForInput(st?.schedTime || '08:00');
   el.querySelector('#smDuration').value = String(st?.duration || 1);
   el.querySelector('#smFee').value     = st?.feePerSlot || '';
 
@@ -233,12 +234,12 @@ function _save(el) {
   const schedDays    = [...el.querySelectorAll('.day-chip.selected')].map(c => +c.dataset.day);
   const difficulties = [...el.querySelectorAll('.diff-chip.selected')].map(c => c.dataset.d);
 
-  const startDate = el.querySelector('#smStartDate').value || todayStr();
+  const startDate = _parseDateInput(el.querySelector('#smStartDate').value) || todayStr();
 
   Store.upsertStudent({
     id: _editingId || uid(),
     name,
-    dob:        el.querySelector('#smDob').value,
+    dob:        _parseDateInput(el.querySelector('#smDob').value) || '',
     gender:     el.querySelector('#smGender').value,
     status:     _editingId ? (el.querySelector('#smStatus')?.value || 'active') : 'active',
     startDate,
@@ -247,12 +248,90 @@ function _save(el) {
     fatherName: el.querySelector('#smFatherName').value.trim(),
     motherName: el.querySelector('#smMotherName').value.trim(),
     schedDays,
-    schedTime:  el.querySelector('#smTime').value,
+    schedTime:  _parseTimeInput(el.querySelector('#smTime').value) || '08:00',
     duration:   +el.querySelector('#smDuration').value,
     feePerSlot: +el.querySelector('#smFee').value || 0,
   });
 
   close();
+}
+
+
+function _formatDateForInput(value) {
+  if (!value) return '';
+  const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return value;
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+function _parseDateInput(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const normalized = raw.replace(/[.\-\s]+/g, '/');
+  let m = normalized.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) {
+    const compact = raw.replace(/\D/g, '');
+    if (compact.length === 8) {
+      m = compact.match(/^(\d{2})(\d{2})(\d{4})$/);
+    }
+  }
+  if (!m) return '';
+  const d = Number(m[1]);
+  const mo = Number(m[2]);
+  const y = Number(m[3]);
+  if (!y || mo < 1 || mo > 12 || d < 1 || d > 31) return '';
+  const date = new Date(y, mo - 1, d);
+  if (date.getFullYear() !== y || date.getMonth() !== mo - 1 || date.getDate() !== d) return '';
+  return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+function _formatTimeForInput(value) {
+  const parsed = _parseTimeInput(value);
+  return parsed || '08:00';
+}
+
+function _parseTimeInput(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  let m = raw.match(/^(\d{1,2}):(\d{1,2})$/);
+  if (!m) {
+    const compact = raw.replace(/\D/g, '');
+    if (compact.length === 3) m = compact.match(/^(\d{1})(\d{2})$/);
+    if (compact.length === 4) m = compact.match(/^(\d{2})(\d{2})$/);
+  }
+  if (!m) return '';
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (h < 0 || h > 23 || min < 0 || min > 59) return '';
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+}
+
+function _bindDateTimeFields(el) {
+  const formatDateField = (field) => {
+    const parsed = _parseDateInput(field.value);
+    if (parsed) field.value = _formatDateForInput(parsed);
+  };
+  const formatTimeField = (field) => {
+    const parsed = _parseTimeInput(field.value);
+    if (parsed) field.value = parsed;
+  };
+  el.querySelectorAll('.ds-date-input').forEach(field => {
+    field.addEventListener('input', () => {
+      const digits = field.value.replace(/\D/g, '').slice(0, 8);
+      if (digits.length <= 2) field.value = digits;
+      else if (digits.length <= 4) field.value = `${digits.slice(0,2)}/${digits.slice(2)}`;
+      else field.value = `${digits.slice(0,2)}/${digits.slice(2,4)}/${digits.slice(4)}`;
+    });
+    field.addEventListener('blur', () => formatDateField(field));
+  });
+  el.querySelectorAll('.ds-time-input').forEach(field => {
+    field.addEventListener('input', () => {
+      const digits = field.value.replace(/\D/g, '').slice(0, 4);
+      if (digits.length <= 2) field.value = digits;
+      else field.value = `${digits.slice(0,2)}:${digits.slice(2)}`;
+    });
+    field.addEventListener('blur', () => formatTimeField(field));
+  });
 }
 
 function _buildDiffPicker(el, selected) {

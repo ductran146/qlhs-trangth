@@ -1005,3 +1005,59 @@ textarea,
     overflow: hidden !important;
   }
 }
+
+/* Date/time design-system fields: use text inputs to avoid iOS native date/time controls breaking the modal */
+.student-modal .ds-date-input,
+.student-modal .ds-time-input {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  box-sizing: border-box !important;
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  height: 48px !important;
+  min-height: 48px !important;
+  max-height: 48px !important;
+  padding: 0 16px !important;
+  border: 1.5px solid var(--border-2) !important;
+  border-radius: var(--r-sm) !important;
+  background: var(--surface-2) !important;
+  color: var(--ink) !important;
+  font-family: inherit !important;
+  font-size: 16px !important;
+  font-weight: 400 !important;
+  line-height: 48px !important;
+  text-align: left !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.student-modal .ds-date-input:focus,
+.student-modal .ds-time-input:focus {
+  outline: none !important;
+  border-color: var(--violet) !important;
+  background: var(--surface) !important;
+  box-shadow: var(--focus-ring) !important;
+}
+
+.student-modal .ds-date-input::placeholder,
+.student-modal .ds-time-input::placeholder {
+  color: var(--ink-3) !important;
+  font-weight: 400 !important;
+}
+
+@media (max-width: 600px) {
+  .student-modal .ds-date-input,
+  .student-modal .ds-time-input {
+    height: 46px !important;
+    min-height: 46px !important;
+    max-height: 46px !important;
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+    font-size: 16px !important;
+    line-height: 46px !important;
+    text-align: left !important;
+  }
+}
