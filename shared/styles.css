@@ -943,3 +943,65 @@ textarea,
     font-size: 20px;
   }
 }
+
+/* Student modal mobile time input fix: prevent iOS Safari from making time fields oversized */
+.student-modal input[type="time"].form-input {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: 48px;
+  min-height: 48px;
+  line-height: 1.2;
+  padding: 10px 12px;
+  text-align: left;
+  display: block;
+}
+
+.student-modal input[type="time"].form-input::-webkit-date-and-time-value {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  line-height: 1.2;
+  text-align: left;
+}
+
+.student-modal input[type="time"].form-input::-webkit-datetime-edit,
+.student-modal input[type="time"].form-input::-webkit-datetime-edit-fields-wrapper,
+.student-modal input[type="time"].form-input::-webkit-datetime-edit-hour-field,
+.student-modal input[type="time"].form-input::-webkit-datetime-edit-minute-field,
+.student-modal input[type="time"].form-input::-webkit-datetime-edit-text {
+  line-height: 1.2;
+  padding: 0;
+}
+
+@media (max-width: 600px) {
+  .student-modal input[type="time"].form-input {
+    height: 46px !important;
+    min-height: 46px !important;
+    max-height: 46px !important;
+    padding: 8px 12px !important;
+    font-size: 16px !important;
+    line-height: 1.2 !important;
+    overflow: hidden !important;
+    text-align: left !important;
+  }
+
+  .student-modal input[type="time"].form-input::-webkit-date-and-time-value {
+    height: 28px !important;
+    line-height: 28px !important;
+    text-align: left !important;
+  }
+
+  .student-modal .time-group,
+  .student-modal .schedule-time-group,
+  .student-modal .form-group:has(input[type="time"]) {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+}

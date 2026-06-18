@@ -2663,3 +2663,50 @@
     font-size: 11.5px;
   }
 }
+
+/* ── STUDENT DETAIL SUMMARY: COMPACT MOBILE ROW ───────────── */
+@media (max-width: 767px) {
+  .student-summary-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .student-summary-grid div {
+    min-width: 0;
+    padding: 10px 6px;
+    border-radius: 14px;
+  }
+
+  .student-summary-grid strong {
+    font-size: 20px;
+    line-height: 1;
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+
+  .student-summary-grid span {
+    font-size: 10px;
+    line-height: 1.2;
+    font-weight: 400;
+    letter-spacing: 0;
+  }
+}
+
+@media (max-width: 380px) {
+  .student-summary-grid {
+    gap: 5px;
+  }
+
+  .student-summary-grid div {
+    padding: 9px 4px;
+    border-radius: 12px;
+  }
+
+  .student-summary-grid strong {
+    font-size: 18px;
+  }
+
+  .student-summary-grid span {
+    font-size: 9.5px;
+  }
+}
