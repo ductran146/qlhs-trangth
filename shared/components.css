@@ -2710,3 +2710,23 @@
     font-size: 9.5px;
   }
 }
+
+/* Student detail: flatten parent weekly AI summary block to reduce nested frames */
+.student-detail-page .ai-summary-card {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+}
+
+.student-detail-page .ai-summary-card .ai-summary-textarea {
+  background: var(--surface, #fff);
+}
+
+@media (max-width: 767px) {
+  .student-detail-page .ai-summary-card {
+    padding: 0;
+    border-radius: 0;
+  }
+}
