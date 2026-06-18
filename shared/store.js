@@ -14,23 +14,16 @@ const COLLECTION_KEYS = ['students', 'sessions', 'debts', 'reports'];
 const BOOTSTRAP_KEY = 'nkct_bootstrap_state';
 
 const DEFAULT = {
-  students: [
-    { id:'s1', name:'Bé Minh Khôi', dob:'2019-03-15', gender:'Nam', startDate:'2026-06-01',
-      difficulties:['Tự kỷ','Chậm nói'], goal:'Phát triển ngôn ngữ, giao tiếp mắt',
-      schedDays:[1,3,5], schedTime:'08:00', duration:1, feePerSlot:200000, fatherName:'Anh Minh', motherName:'Chị Hương' },
-    { id:'s2', name:'Bé Hà Linh', dob:'2020-07-22', gender:'Nữ', startDate:'2026-06-03',
-      difficulties:['Tăng động'], goal:'Tăng tập trung, kiểm soát cảm xúc',
-      schedDays:[2,4], schedTime:'09:30', duration:1, feePerSlot:180000, fatherName:'Anh Nam', motherName:'Chị Linh' },
-    { id:'s3', name:'Bé Tuấn Kiệt', dob:'2018-11-08', gender:'Nam', startDate:'2026-06-02',
-      difficulties:['Chậm phát triển'], goal:'Phát triển vận động tinh, nhận thức',
-      schedDays:[1,4,6], schedTime:'15:00', duration:1.5, feePerSlot:220000, fatherName:'Anh Kiên', motherName:'Chị Mai' },
-  ],
+  students: [],
   sessions: [],
   debts: [],
   reports: []
 };
 
 const _listeners = {};
+const _syncStatus = { auth: 'idle', firestore: 'cache', error: null, lastRemoteAt: null, source: 'local-cache' };
+const _pendingDocWrites = [];
+const _pendingDeletes = [];
 const _cache = Object.fromEntries(COLLECTION_KEYS.map(key => [key, readLocalOrDefault(key)]));
 const _remoteIds = Object.fromEntries(COLLECTION_KEYS.map(key => [key, new Set()]));
 const _firstSnapshot = Object.fromEntries(COLLECTION_KEYS.map(key => [key, false]));
@@ -40,7 +33,6 @@ let _unsubscribers = [];
 let _firebaseReady = false;
 let _firebaseApi = null;
 let _authApi = null;
-let _syncAfterReady = false;
 
 async function loadFirebaseRuntime() {
   if (_firebaseApi && _authApi) return { ..._firebaseApi, Auth: _authApi.Auth };
@@ -96,8 +88,9 @@ function persistBootstrapCache() {
   } catch (_err) {}
 }
 
-function setLocalCache(key, value, shouldEmit = true) {
+function setLocalCache(key, value, shouldEmit = true, source = 'local-cache') {
   _cache[key] = Array.isArray(value) ? value : [];
+  _syncStatus.source = source;
   try { localStorage.setItem('nkct_' + key, JSON.stringify(_cache[key])); } catch (_err) {}
   persistBootstrapCache();
   if (shouldEmit) {
@@ -106,11 +99,45 @@ function setLocalCache(key, value, shouldEmit = true) {
   }
 }
 
-async function syncCollectionToFirestore(key, value) {
+function allCollectionsHaveSnapshot() {
+  return COLLECTION_KEYS.every(key => _firstSnapshot[key] === true);
+}
+
+function updateFirestoreStatusFromSnapshot(snapshot) {
+  _syncStatus.firestore = allCollectionsHaveSnapshot() ? 'synced' : 'syncing';
+  _syncStatus.source = snapshot?.metadata?.fromCache ? 'firestore-cache' : 'firestore-server';
+  if (!snapshot?.metadata?.fromCache) {
+    _syncStatus.lastRemoteAt = new Date().toISOString();
+  }
+}
+
+async function writeItemToFirestore(key, item) {
+  if (!item?.id) return;
   if (!_firebaseReady || !_teacherId || !_firebaseApi) {
-    _syncAfterReady = true;
+    _pendingDocWrites.push({ key, item: cleanForFirestore(item) });
     return;
   }
+  await _firebaseApi.setDoc(teacherDoc(key, item.id), cleanForFirestore(item), { merge: false })
+    .catch((err) => setSyncError(`[store] Write ${key}/${item.id} failed`, err));
+}
+
+async function deleteItemFromFirestore(key, id) {
+  if (!id) return;
+  if (!_firebaseReady || !_teacherId || !_firebaseApi) {
+    _pendingDeletes.push({ key, id: String(id) });
+    return;
+  }
+  await _firebaseApi.deleteDoc(teacherDoc(key, id))
+    .catch((err) => setSyncError(`[store] Delete ${key}/${id} failed`, err));
+}
+
+async function syncCollectionToFirestore(key, value, options = {}) {
+  // Firestore is the source of truth. Collection replacement is only allowed
+  // after the first remote snapshot for that collection has been received.
+  // This prevents stale browser localStorage from overwriting/deleting newer
+  // Firestore data when Safari/Chrome open the app with different caches.
+  if (!_firebaseReady || !_teacherId || !_firebaseApi) return;
+  const allowDeletes = options.allowDeletes === true && _firstSnapshot[key] === true;
   const list = Array.isArray(value) ? value : [];
   const nextIds = new Set(list.map(item => String(item.id)).filter(Boolean));
   const previousIds = _remoteIds[key] || new Set();
@@ -120,79 +147,101 @@ async function syncCollectionToFirestore(key, value) {
     if (!item?.id) continue;
     writes.push(_firebaseApi.setDoc(teacherDoc(key, item.id), cleanForFirestore(item), { merge: false }));
   }
-  for (const id of previousIds) {
-    if (!nextIds.has(id)) writes.push(_firebaseApi.deleteDoc(teacherDoc(key, id))); 
+  if (allowDeletes) {
+    for (const id of previousIds) {
+      if (!nextIds.has(id)) writes.push(_firebaseApi.deleteDoc(teacherDoc(key, id)));
+    }
   }
 
-  _remoteIds[key] = nextIds;
-  await Promise.all(writes).catch((err) => console.error(`[store] Sync ${key} failed:`, err));
+  await Promise.all(writes).catch((err) => setSyncError(`[store] Sync ${key} failed`, err));
+}
+
+function setSyncError(message, err) {
+  console.error(message + ':', err);
+  _syncStatus.error = err?.message || String(err || message);
+  _syncStatus.firestore = 'error';
+  Store.emit('sync', Store.getSyncStatus());
+}
+
+async function flushPendingWrites() {
+  if (!_firebaseReady || !_teacherId || !_firebaseApi) return;
+  const docWrites = _pendingDocWrites.splice(0);
+  const deletes = _pendingDeletes.splice(0);
+  for (const item of docWrites) {
+    await writeItemToFirestore(item.key, item.item);
+  }
+  for (const item of deletes) {
+    await deleteItemFromFirestore(item.key, item.id);
+  }
 }
 
 function cleanForFirestore(value) {
   return JSON.parse(JSON.stringify(value, (_key, val) => val === undefined ? null : val));
 }
 
-async function maybeMigrateLocalData() {
-  if (!_firebaseReady || !_teacherId) return;
-  for (const key of COLLECTION_KEYS) {
-    if ((_remoteIds[key] || new Set()).size > 0) continue;
-    let localList = [];
-    try {
-      const raw = localStorage.getItem('nkct_' + key);
-      localList = raw ? JSON.parse(raw) : [];
-    } catch (_err) {}
-    if (Array.isArray(localList) && localList.length) {
-      await syncCollectionToFirestore(key, localList);
-    }
-  }
-}
+// Deprecated on purpose: never auto-migrate localStorage to Firestore.
+// Old browser cache must not overwrite the realtime database.
+async function maybeMigrateLocalData() { return false; }
 
 const Store = {
   async init() {
     if (_initPromise) return _initPromise;
 
     _initPromise = (async () => {
+      _syncStatus.auth = 'checking';
+      _syncStatus.firestore = 'cache';
+      Store.emit('sync', Store.getSyncStatus());
       const { Auth, onSnapshot } = await loadFirebaseRuntime();
       const authUser = await Auth.ready();
-      if (!authUser) return false;
+      if (!authUser) {
+        _syncStatus.auth = 'signed_out';
+        Store.emit('sync', Store.getSyncStatus());
+        return false;
+      }
       const user = Auth.currentUser();
-      if (!user?.uid) return false;
+      if (!user?.uid) {
+        _syncStatus.auth = 'signed_out';
+        Store.emit('sync', Store.getSyncStatus());
+        return false;
+      }
       _teacherId = user.uid;
 
       _unsubscribers.forEach(unsub => { try { unsub(); } catch (_err) {} });
       _unsubscribers = [];
       _firebaseReady = true;
+      _syncStatus.auth = 'signed_in';
+      _syncStatus.firestore = 'syncing';
+      _syncStatus.error = null;
+      Store.emit('sync', Store.getSyncStatus());
 
       // Attach realtime listeners, but do NOT await the first snapshots.
       // On iPhone/Safari page navigation can re-download Firebase SDK + wait for
       // Firestore. Waiting here made the Checkin tab appear blank for 5–30s.
       COLLECTION_KEYS.forEach(key => {
-        const localBeforeSnapshot = Array.isArray(_cache[key]) ? [..._cache[key]] : [];
-        const unsubscribe = onSnapshot(teacherCollection(key), (snapshot) => {
+        const unsubscribe = onSnapshot(teacherCollection(key), { includeMetadataChanges: true }, (snapshot) => {
           const remoteList = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
           const remoteIds = new Set(remoteList.map(item => String(item.id)));
           _remoteIds[key] = remoteIds;
 
-          // First run migration guard: if Firestore is empty but this browser
-          // already has local data, upload local cache instead of clearing the UI.
-          if (!_firstSnapshot[key] && remoteList.length === 0 && localBeforeSnapshot.length > 0) {
-            _firstSnapshot[key] = true;
-            syncCollectionToFirestore(key, localBeforeSnapshot);
-            return;
-          }
-
+          // Firestore is the source of truth. Even when the remote list is
+          // empty, overwrite browser cache instead of uploading localStorage.
+          // Snapshot may arrive from Firestore's IndexedDB cache first, then
+          // from server. Both are safer than legacy app localStorage because
+          // they belong to Firestore sync, not old JSON/import data.
           _firstSnapshot[key] = true;
-          setLocalCache(key, remoteList, true);
+          updateFirestoreStatusFromSnapshot(snapshot);
+          setLocalCache(key, remoteList, true, snapshot.metadata.fromCache ? 'firestore-cache' : 'firestore-server');
+          Store.emit('sync', Store.getSyncStatus());
+
+          // Flush pending writes only after the first server-backed snapshot.
+          // This avoids stale browser cache being written back before the
+          // current Firestore state has had a chance to arrive.
+          if (!snapshot.metadata.fromCache) flushPendingWrites();
         }, (error) => {
-          console.error(`[store] Firestore listener failed for ${key}:`, error);
+          setSyncError(`[store] Firestore listener failed for ${key}`, error);
         });
         _unsubscribers.push(unsubscribe);
       });
-
-      if (_syncAfterReady) {
-        _syncAfterReady = false;
-        COLLECTION_KEYS.forEach(key => syncCollectionToFirestore(key, _cache[key]));
-      }
 
       return true;
     })();
@@ -213,9 +262,13 @@ const Store = {
     };
   },
 
-  set(key, value) {
-    setLocalCache(key, value, true);
-    syncCollectionToFirestore(key, value);
+  set(key, value, options = {}) {
+    setLocalCache(key, value, true, 'optimistic-local');
+    syncCollectionToFirestore(key, value, { allowDeletes: options.allowDeletes === true || _firstSnapshot[key] === true });
+  },
+
+  getSyncStatus() {
+    return { ..._syncStatus, teacherId: _teacherId, firebaseReady: _firebaseReady };
   },
 
   upsertStudent(obj) {
@@ -227,16 +280,19 @@ const Store = {
     };
     if (idx > -1) list[idx] = { ...list[idx], ...normalized };
     else list.push(normalized);
-    this.set('students', list);
+    setLocalCache('students', list, true, 'optimistic-local');
+    writeItemToFirestore('students', normalized);
   },
 
   upsertSession(obj) {
     const list = [...this.get('sessions')];
     const idx  = list.findIndex(s => s.id === obj.id);
-    if (idx > -1) list[idx] = { ...list[idx], ...obj };
-    else list.push(obj);
-    this.set('sessions', list);
-    this.syncDebts(obj);
+    const nextSession = idx > -1 ? { ...list[idx], ...obj } : obj;
+    if (idx > -1) list[idx] = nextSession;
+    else list.push(nextSession);
+    setLocalCache('sessions', list, true, 'optimistic-local');
+    writeItemToFirestore('sessions', nextSession);
+    this.syncDebts(nextSession);
     this.reconcileDebts();
   },
 
@@ -260,7 +316,7 @@ const Store = {
         reason: sess.status,
         done: false
       });
-      this.set('debts', debts);
+      this.set('debts', debts, { allowDeletes: true });
       return;
     }
 
@@ -274,13 +330,13 @@ const Store = {
         reason: sess.status,
         done: debtSlots <= 0,
       };
-      this.set('debts', debts);
+      this.set('debts', debts, { allowDeletes: true });
       return;
     }
 
     if (!needsDebt && hasDebt) {
       debts = debts.filter(d => d.sessionId !== sess.id);
-      this.set('debts', debts);
+      this.set('debts', debts, { allowDeletes: true });
     }
   },
 
@@ -301,7 +357,8 @@ const Store = {
     };
     if (idx > -1) list[idx] = { ...list[idx], ...next };
     else list.push(next);
-    this.set('reports', list);
+    setLocalCache('reports', list, true, 'optimistic-local');
+    writeItemToFirestore('reports', next);
     return next;
   },
 
@@ -316,7 +373,7 @@ const Store = {
 
   markDebtDone(debtId) {
     const debts = this.get('debts').map(d => d.id === debtId ? { ...d, done: true } : d);
-    this.set('debts', debts);
+    this.set('debts', debts, { allowDeletes: true });
   },
 
   reconcileDebts() {
@@ -376,7 +433,7 @@ const Store = {
     }
 
     const same = JSON.stringify(oldDebts) === JSON.stringify(workingDebts);
-    if (!same) this.set('debts', workingDebts);
+    if (!same) this.set('debts', workingDebts, { allowDeletes: true });
     return workingDebts;
   },
 
