@@ -50,7 +50,7 @@ export function render(el, dataset) {
             <label class="form-label">Ngày bắt đầu học *</label>
             <input class="form-input" id="smStartDate" type="date">
           </div>
-          <div class="form-group sm-status-group" id="smStatusGroup">
+          <div class="form-group sm-status-group is-edit-only" id="smStatusGroup" style="display:none">
             <label class="form-label">Trạng thái học sinh</label>
             <select class="form-input form-select" id="smStatus">
               <option value="active">Đang học</option>
@@ -146,7 +146,14 @@ function _open(el, id = null) {
   const statusGroup = el.querySelector('#smStatusGroup');
   startStatusRow?.classList.toggle('is-add-mode', !isEdit);
   startStatusRow?.classList.toggle('is-edit-mode', isEdit);
-  if (statusGroup) statusGroup.hidden = !isEdit;
+  if (statusGroup) {
+    // Khi thêm mới học sinh: không hiển thị trạng thái.
+    // Trạng thái chỉ dùng ở chế độ sửa để chuyển Đang học / Đã nghỉ.
+    statusGroup.hidden = !isEdit;
+    statusGroup.style.display = isEdit ? '' : 'none';
+    statusGroup.setAttribute('aria-hidden', isEdit ? 'false' : 'true');
+    statusGroup.querySelector('select')?.toggleAttribute('disabled', !isEdit);
+  }
 
   el.querySelector('#smName').value    = st?.name    || '';
   el.querySelector('#smDob').value     = st?.dob     || '';

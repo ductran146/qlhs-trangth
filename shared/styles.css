@@ -796,3 +796,91 @@ textarea,
     text-align: left;
   }
 }
+
+
+/* Student modal iPhone layout fix: prevent date/select fields from overlapping */
+.student-modal .sm-status-group[hidden],
+.student-modal .sm-status-group[aria-hidden="true"],
+.student-modal .sm-status-group[style*="display:none"],
+.student-modal .sm-status-group[style*="display: none"] {
+  display: none !important;
+}
+
+.student-modal .sm-start-status-row.is-add-mode,
+.student-modal .sm-start-status-row:not(.is-edit-mode) {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.student-modal .sm-start-status-row.is-add-mode .sm-start-date-group,
+.student-modal .sm-start-status-row:not(.is-edit-mode) .sm-start-date-group {
+  grid-column: 1 / -1 !important;
+  width: 100% !important;
+}
+
+@media (max-width: 600px) {
+  .student-modal {
+    box-sizing: border-box;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-left: 18px !important;
+    padding-right: 18px !important;
+  }
+
+  .student-modal .form-row,
+  .student-modal .sm-dob-gender-row,
+  .student-modal .sm-start-status-row,
+  .student-modal .sm-start-status-row.is-add-mode,
+  .student-modal .sm-start-status-row.is-edit-mode {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+
+  .student-modal .form-group,
+  .student-modal .sm-start-date-group,
+  .student-modal .sm-status-group {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .student-modal .form-input,
+  .student-modal .form-select,
+  .student-modal input[type="date"].form-input,
+  .student-modal input[type="time"].form-input,
+  .student-modal select.form-input,
+  .student-modal textarea.form-input {
+    box-sizing: border-box !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .student-modal input[type="date"].form-input {
+    height: 46px !important;
+    min-height: 46px !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+    text-align: left !important;
+  }
+
+  .student-modal input[type="date"].form-input::-webkit-date-and-time-value {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    text-align: left !important;
+  }
+
+  .student-modal select.form-input,
+  .student-modal .form-select {
+    height: 46px !important;
+    min-height: 46px !important;
+    padding-left: 12px !important;
+    padding-right: 38px !important;
+    background-position: right 12px center !important;
+  }
+}
