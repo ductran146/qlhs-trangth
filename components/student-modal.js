@@ -45,9 +45,18 @@ export function render(el, dataset) {
           </div>
         </div>
 
-        <div class="form-group">
-          <label class="form-label">Ngày bắt đầu học *</label>
-          <input class="form-input" id="smStartDate" type="date">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Ngày bắt đầu học *</label>
+            <input class="form-input" id="smStartDate" type="date">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Trạng thái học sinh</label>
+            <select class="form-input form-select" id="smStatus">
+              <option value="active">Đang học</option>
+              <option value="inactive">Đã nghỉ</option>
+            </select>
+          </div>
         </div>
 
         <div class="modal-section">Thông tin phụ huynh</div>
@@ -135,6 +144,7 @@ function _open(el, id = null) {
   el.querySelector('#smDob').value     = st?.dob     || '';
   el.querySelector('#smGender').value  = st?.gender  || 'Nam';
   el.querySelector('#smStartDate').value = st?.startDate || todayStr();
+  el.querySelector('#smStatus').value = st?.status || 'active';
   el.querySelector('#smGoal').value    = st?.goal    || '';
   el.querySelector('#smFatherName').value = st?.fatherName || '';
   el.querySelector('#smMotherName').value = st?.motherName || '';
@@ -214,6 +224,7 @@ function _save(el) {
     name,
     dob:        el.querySelector('#smDob').value,
     gender:     el.querySelector('#smGender').value,
+    status:     el.querySelector('#smStatus').value || 'active',
     startDate,
     difficulties,
     goal:       el.querySelector('#smGoal').value.trim(),

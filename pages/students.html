@@ -49,6 +49,98 @@
 .debt-info { flex: 1; }
 .debt-name { font-size: 13px; font-weight: 600; }
 .debt-meta { font-size: 12px; color: var(--ink-3); margin-top: 1px; }
+
+.student-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 190px;
+  gap: 10px;
+  margin: 0 0 14px;
+}
+.student-search-wrap { position: relative; min-width: 0; }
+.student-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--ink-3);
+  pointer-events: none;
+}
+.student-search {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px 0 40px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+  box-shadow: var(--sh-sm, none);
+}
+.student-search:focus,
+.student-sort:focus {
+  border-color: var(--violet, var(--primary));
+  box-shadow: 0 0 0 4px rgba(115, 91, 249, .12);
+}
+.student-sort {
+  width: 100%;
+  height: 44px;
+  padding: 0 36px 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-3) 50%), linear-gradient(135deg, var(--ink-3) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 18px, calc(100% - 13px) 18px;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+.student-status-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 14px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.student-status-tabs::-webkit-scrollbar { display: none; }
+.student-status-tab {
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 14px;
+  white-space: nowrap;
+}
+.student-status-tab.active {
+  border-color: var(--violet, var(--primary));
+  background: rgba(115, 91, 249, .10);
+  color: var(--violet, var(--primary));
+  font-weight: 700;
+}
+.student-empty-filter {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--ink-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh);
+}
+@media (max-width: 640px) {
+  .student-toolbar { grid-template-columns: 1fr; gap: 8px; }
+  .student-search,
+  .student-sort { height: 46px; font-size: 15px; }
+  .student-status-tabs { margin-bottom: 12px; }
+}
+
 </style>
 </head>
 <body>
@@ -76,21 +168,48 @@ import { Store, avatarColor, initials, age, fmtDate, fmtMoney, todayStr } from '
 const DAYS_SHORT = ['CN','T2','T3','T4','T5','T6','T7'];
 const page = document.getElementById('pageStudents');
 
+const state = {
+  query: '',
+  sort: localStorage.getItem('nkct_students_sort') || 'start-desc',
+  status: localStorage.getItem('nkct_students_status') || 'active',
+};
+
 function render() {
-  const students = Store.get('students');
+  const allStudents = Store.get('students').map(st => ({ ...st, status: st.status || 'active' }));
   const debts    = Store.get('debts').filter(d => !d.done);
   const sessions = Store.get('sessions');
+  const activeCount = allStudents.filter(st => st.status !== 'inactive').length;
+  const filteredStudents = getFilteredStudents(allStudents);
 
   let html = `
     <div class="page-header">
       <div>
         <div class="page-title">Học sinh</div>
-        <div class="page-sub">${students.length} học sinh đang can thiệp</div>
+        <div class="page-sub">${activeCount} học sinh đang can thiệp</div>
       </div>
       <button class="btn btn-primary btn-sm" id="btnAddStudent">+ Thêm</button>
+    </div>
+
+    <div class="student-toolbar">
+      <div class="student-search-wrap">
+        <span class="student-search-icon" aria-hidden="true">⌕</span>
+        <input class="student-search" id="studentSearch" type="search"
+          placeholder="Tìm tên học sinh" value="${escapeAttr(state.query)}" autocomplete="off">
+      </div>
+      <select class="student-sort" id="studentSort" aria-label="Sắp xếp học sinh">
+        <option value="start-desc" ${state.sort === 'start-desc' ? 'selected' : ''}>Mới vào học trước</option>
+        <option value="start-asc" ${state.sort === 'start-asc' ? 'selected' : ''}>Cũ vào học trước</option>
+        <option value="name-asc" ${state.sort === 'name-asc' ? 'selected' : ''}>Tên A → Z</option>
+      </select>
+    </div>
+
+    <div class="student-status-tabs" role="tablist" aria-label="Trạng thái học sinh">
+      <button class="student-status-tab ${state.status === 'active' ? 'active' : ''}" data-status-filter="active" type="button">Đang học</button>
+      <button class="student-status-tab ${state.status === 'inactive' ? 'active' : ''}" data-status-filter="inactive" type="button">Đã nghỉ</button>
+      <button class="student-status-tab ${state.status === 'all' ? 'active' : ''}" data-status-filter="all" type="button">Tất cả</button>
     </div>`;
 
-  if (!students.length) {
+  if (!allStudents.length) {
     html += `
       <div class="empty-state">
         <div class="icon"><span class="empty-emoji emoji" aria-hidden="true">👦</span></div>
@@ -99,7 +218,7 @@ function render() {
       </div>`;
   }
 
-  for (const st of students) {
+  for (const st of filteredStudents) {
     const stDebts  = debts.filter(d => d.studentId === st.id);
     const learnedSlots = learnedSlotsToDate(sessions, st);
     const schedTxt = (st.schedDays || []).map(d => DAYS_SHORT[d]).join(', ')
@@ -113,6 +232,7 @@ function render() {
         <div class="student-body">
           <div class="student-name">
             ${st.name}
+            ${st.status === 'inactive' ? `<span class="tag" style="margin-left:6px">Đã nghỉ</span>` : ''}
             ${stDebts.length ? `<span class="tag red" style="margin-left:6px">Nợ ${stDebts.reduce((a,d)=>a+d.slots,0)} ca</span>` : ''}
           </div>
           <div class="student-tags">
@@ -133,6 +253,10 @@ function render() {
       </div>`;
   }
 
+  if (allStudents.length && !filteredStudents.length) {
+    html += `<div class="student-empty-filter">Không tìm thấy học sinh phù hợp</div>`;
+  }
+
   if (debts.length) {
     html += `
       <div class="mt-16">
@@ -140,7 +264,7 @@ function render() {
         <div class="card">
           <div class="card-body">
             ${debts.map(debt => {
-              const st = students.find(s => s.id === debt.studentId);
+              const st = allStudents.find(s => s.id === debt.studentId);
               return `
                 <div class="debt-item">
                   <div class="debt-info">
@@ -159,6 +283,30 @@ function render() {
   }
 
   page.innerHTML = html;
+
+  // Bind filters
+  document.getElementById('studentSearch')?.addEventListener('input', (event) => {
+    const cursor = event.target.selectionStart ?? event.target.value.length;
+    state.query = event.target.value;
+    render();
+    const input = document.getElementById('studentSearch');
+    input?.focus({ preventScroll: true });
+    input?.setSelectionRange?.(cursor, cursor);
+  });
+
+  document.getElementById('studentSort')?.addEventListener('change', (event) => {
+    state.sort = event.target.value;
+    localStorage.setItem('nkct_students_sort', state.sort);
+    render();
+  });
+
+  page.querySelectorAll('[data-status-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.status = btn.dataset.statusFilter;
+      localStorage.setItem('nkct_students_status', state.status);
+      render();
+    });
+  });
 
   // Bind add button
   document.getElementById('btnAddStudent')?.addEventListener('click', () => {
@@ -186,6 +334,45 @@ Store.subscribe('students', render);
 Store.subscribe('sessions', render);
 Store.subscribe('debts', render);
 render();
+
+
+function getFilteredStudents(students) {
+  const q = normalizeText(state.query);
+  return students
+    .filter(st => {
+      const status = st.status || 'active';
+      if (state.status !== 'all' && status !== state.status) return false;
+      if (!q) return true;
+      return normalizeText(st.name).includes(q);
+    })
+    .sort((a, b) => {
+      if (state.sort === 'name-asc') {
+        return String(a.name || '').localeCompare(String(b.name || ''), 'vi');
+      }
+      const av = a.startDate || '';
+      const bv = b.startDate || '';
+      if (state.sort === 'start-asc') return av.localeCompare(bv) || String(a.name || '').localeCompare(String(b.name || ''), 'vi');
+      return bv.localeCompare(av) || String(a.name || '').localeCompare(String(b.name || ''), 'vi');
+    });
+}
+
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase()
+    .trim();
+}
+
+function escapeAttr(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
 
 function learnedSlotsToDate(sessions, st) {
   const today = todayStr();
