@@ -14,38 +14,38 @@
 /* ── TOKENS ─────────────────────────────── */
  :root {
   /* Design tokens — Theme Light / System Color Mode 1 */
-  --token-primary: #796EFF;
+  --token-primary: #735BF9;
   --token-primary-hover: #653DEE;
-  --token-primary-soft: #796EFF14;
+  --token-primary-soft: #EDEEFF;
   --token-primary-disabled: #796EFF29;
 
-  --token-text-title: #070431EB;
-  --token-text-content: #2D3033;
+  --token-text-title: #101013;
+  --token-text-content: #383D42;
   --token-text-content-2: #454B50;
   --token-text-placeholder: #8C9396;
-  --token-text-disabled: #D2D8D8;
+  --token-text-disabled: #B5BDC4;
 
   --token-surface: #FFFFFF;
   --token-background: #F5F7F8;
   --token-background-lv3: #EDF0F2;
-  --token-border: #07043114;
-  --token-border-strong: #07043129;
-  --token-separator: #0704311F;
+  --token-border: #DFE3E6;
+  --token-border-strong: #CBD2D6;
+  --token-separator: #EDF0F2;
 
-  --token-success: #2ECC71;
+  --token-success: #1D9C53;
   --token-success-soft: #DEFAEA;
   --token-success-bg: #F1FCF5;
   --token-success-text: #1D9C53;
 
-  --token-warning: #FFB800;
-  --token-warning-soft: #FFF9C5;
-  --token-warning-bg: #FFFEEA;
+  --token-warning: #E28D00;
+  --token-warning-soft: #FFF4ED;
+  --token-warning-bg: #FFF8F0;
   --token-warning-text: #E28D00;
 
-  --token-error: #FF2323;
-  --token-error-soft: #FFDDDD;
-  --token-error-bg: #FFF0F0;
-  --token-error-text: #FF1010;
+  --token-error: #D70000;
+  --token-error-soft: #FFEBEC;
+  --token-error-bg: #FFF8F7;
+  --token-error-text: #D70000;
 
   --token-info: #02AAD8;
   --token-info-soft: #CEF8FF;
@@ -102,25 +102,34 @@
   --sp-16x: 64px;
   --sp-20x: 80px;
 
+  --space-1: var(--sp-1x);
+  --space-2: var(--sp-2x);
+  --space-3: var(--sp-3x);
+  --space-4: var(--sp-4x);
+  --space-5: var(--sp-5x);
+  --space-6: var(--sp-6x);
+  --space-8: var(--sp-8x);
+
   /* Layout */
   --sidebar-w: 220px;
   --nav-h:     60px;
   --content-max: 960px;
 
   /* Radius tokens */
-  --r-xs: 4px;
-  --r-sm: 8px;
+  --r-xs: 6px;
+  --r-sm: 10px;
   --r-md: 12px;
   --r-lg: 16px;
-  --r-xl: 16px;
+  --r-xl: 20px;
+  --r-pill: 9999px;
 
   /* Effect tokens */
-  --sh:    0 1px 3px 0 #0704310D, 0 2px 6px 0 #07043114;
-  --sh-md: 0 2px 11px 0 #07043114;
-  --sh-lg: 0 12px 16px -4px #07043114, 0 4px 6px -2px #0704310D;
-  --sh-soft: 0 15px 48px -12px #0704311F;
-  --sh-bottom-menu: 0 -1px 2px 0 #07043108, 0 -4px 36px 0 #0704310D;
-  --focus-ring: 0 0 0 3px #796EFF29;
+  --sh:    0 1px 2px rgba(16,16,19,.08);
+  --sh-md: 0 2px 11px rgba(16,16,19,.08);
+  --sh-lg: 0 12px 16px -4px rgba(16,16,19,.08), 0 4px 6px -2px rgba(16,16,19,.05);
+  --sh-soft: 0 15px 48px -12px rgba(115,91,249,.18);
+  --sh-bottom-menu: 0 -1px 2px rgba(16,16,19,.08), 0 -4px 36px rgba(16,16,19,.08);
+  --focus-ring: 0 0 0 4px #796EFF29;
   --overlay-bg: #07043180;
 
   /* Typography — keep Inter for text and TossFace for emoji */
@@ -489,4 +498,123 @@ ul, ol { list-style: none; }
   .login-card { padding: 20px; }
   .topbar-user { display: none; }
   .topbar-logout-btn { padding: 0 10px; }
+}
+
+
+/* ═══════════════════════════════════════════
+   DUCTRAN EDUCATION DESIGN SYSTEM OVERRIDES
+   Source: uploaded `ductran-education Design System.html`
+   Notes: Keep TossFace emoji font and dialog close SVG unchanged.
+   ═══════════════════════════════════════════ */
+body {
+  background: var(--bg);
+  color: var(--token-text-content);
+  font-weight: 400;
+}
+.page-title,
+.login-brand h1,
+.modal-title,
+.month-overview h2,
+.week-attendance-head h2,
+.detail-section-head h2 {
+  color: var(--token-text-title);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.page-sub,
+.text-muted,
+.form-label,
+.section-label,
+.modal-section,
+.stat-lbl,
+.month-stat-label,
+.month-student-meta,
+.week-attendance-head p,
+.topbar-date {
+  font-weight: 400;
+  color: var(--token-text-placeholder);
+}
+.btn,
+button.btn,
+.login-submit,
+.topbar-logout-btn,
+.session-note-btn,
+.attendance-status-choice,
+.attendance-modal-actions .btn {
+  font-weight: 600;
+}
+.btn,
+.login-submit,
+.topbar-logout-btn,
+.form-input,
+.login-form input,
+select,
+textarea,
+.note-ta {
+  border-radius: var(--r-md);
+}
+.btn-primary,
+.login-submit {
+  background: var(--token-primary);
+  color: var(--token-surface);
+  box-shadow: var(--sh);
+}
+.btn-primary:hover,
+.login-submit:hover { background: var(--token-primary-hover); }
+.btn-outline,
+.topbar-logout-btn {
+  background: var(--surface);
+  color: var(--token-text-content);
+  border-color: var(--token-border);
+}
+.btn-outline:hover,
+.topbar-logout-btn:hover {
+  background: var(--token-background-lv3);
+  color: var(--token-text-title);
+}
+.form-input,
+.login-form input,
+.note-ta,
+.ai-summary-textarea,
+.attendance-debt-select {
+  background: var(--surface);
+  border-color: var(--token-border);
+  color: var(--token-text-title);
+  font-weight: 400;
+}
+.form-input:focus,
+.login-form input:focus,
+.note-ta:focus,
+.ai-summary-textarea:focus,
+.attendance-debt-select:focus {
+  border-color: var(--token-primary);
+  box-shadow: var(--focus-ring);
+}
+.card,
+.login-card,
+.modal,
+.month-overview,
+.week-attendance,
+.student-profile-card,
+.detail-report-card,
+.notes-student-group,
+.session-card,
+.checkin-card,
+.stat-box,
+.pending-dialog,
+.attendance-modal,
+.pending-attendance-modal {
+  border-color: var(--token-border);
+  box-shadow: var(--sh);
+}
+.tag,
+.status-pill,
+.month-student-count,
+.notes-student-count {
+  font-weight: 500;
+  border-radius: var(--r-pill);
+}
+.avatar {
+  font-weight: 600;
+  background: var(--token-primary);
 }

@@ -502,8 +502,8 @@ function applyMakeupFIFO(studentId, availableSlots, sourceSessionId, sourceDate)
       d.studentId === studentId &&
       !d.done &&
       Number(d.slots || 0) > 0 &&
-      d.sessionId !== sourceSessionId &&
-      (!sourceDate || String(d.date) <= String(sourceDate))
+      d.sessionId !== sourceSessionId
+      // Cho phép dạy bù trước: không giới hạn ca nợ phải cũ hơn ngày dạy bù.
     )
     .sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.id).localeCompare(String(b.id)))
     .map(d => d.id);
@@ -638,7 +638,7 @@ function previewText(status, planned, actual, debt) {
   if (status === 'partial') return `Kế hoạch ${formatSlots(planned)} ca · thực học ${formatSlots(a)} ca · còn thiếu ${formatSlots(Math.max(planned - a, 0))} ca.`;
   if (status === 'absent') return `Nghỉ buổi này · tự tạo nợ ${formatSlots(planned)} ca cần bù.`;
   if (status === 'busy') return `Cô bận · tự tạo nợ ${formatSlots(planned)} ca cần bù.`;
-  if (status === 'makeup') return debt ? `Dạy bù ${formatSlots(a)} ca. App sẽ trừ vào ca thiếu cũ nhất trước.` : `Dạy bù ${formatSlots(a)} ca. Nếu có nhiều ca thiếu, app sẽ trừ ca cũ nhất trước.`;
+  if (status === 'makeup') return debt ? `Dạy bù ${formatSlots(a)} ca. App sẽ trừ vào ca thiếu cũ nhất trước.` : `Dạy bù ${formatSlots(a)} ca. Nếu chưa có ca nợ, app sẽ ghi nhận như ca bù trước và tự trừ khi phát sinh nghỉ/cô bận sau này.`;
   if (status === 'taught') return `Đã học đủ ${formatSlots(planned || a)} ca. Không cần nhập số ca thực tế.`;
   return '';
 }

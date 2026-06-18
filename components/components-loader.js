@@ -1,31 +1,163 @@
 /**
  * components/components-loader.js
- * Quét tất cả [data-component] trong trang, import và render từng component.
+ * Fast component boot for mobile.
+ *
+ * Why:
+ * - Do not import Firestore/Store before the shell is visible.
+ * - Render navigation/header placeholders first, then hydrate protected data.
+ * - Start Firestore realtime in the background so tab switching does not wait for
+ *   the first onSnapshot() of all collections.
  */
 
-import { Auth } from '../shared/auth.js';
-import { Store } from '../shared/store.js';
+const FAST_COMPONENTS = new Set(['bottom-nav', 'sidebar']);
+const DATA_COMPONENTS = new Set([
+  'month-overview',
+  'week-attendance',
+  'checkin-card',
+  'session-card',
+  'student-modal'
+]);
+
+function isInPagesDir() {
+  return location.pathname.includes('/pages/');
+}
+
+function getActivePage() {
+  return location.pathname.split('/').pop().replace('.html', '') || 'checkin';
+}
+
+function safeText(value) {
+  return String(value || '').replace(/[&<>"]/g, (ch) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;'
+  }[ch]));
+}
+
+function renderTopbarSkeleton(el, dataset = {}) {
+  const title = dataset.title || 'Nhật ký can thiệp';
+  const dt = new Date();
+  const date = dt.toLocaleDateString('vi-VN', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'numeric'
+  });
+
+  el.innerHTML = `
+    <header class="topbar" data-fast-shell="true">
+      <div class="topbar-inner">
+        <div class="topbar-brand">
+          <div class="topbar-icon emoji" aria-hidden="true">🌱</div>
+          <span class="topbar-title">${safeText(title)}</span>
+        </div>
+        <div class="topbar-right">
+          <span class="topbar-date">${safeText(date)}</span>
+        </div>
+      </div>
+    </header>`;
+}
+
+function renderBottomNavFallback(el, dataset = {}) {
+  const tabs = [
+    { key: 'checkin', href: 'checkin.html', icon: '✅', label: 'Điểm danh' },
+    { key: 'notes', href: 'notes.html', icon: '📓', label: 'Nhật ký' },
+    { key: 'students', href: 'students.html', icon: '👦', label: 'Học sinh' },
+    { key: 'income', href: 'income.html', icon: '💰', label: 'Thu nhập' },
+  ];
+  const active = dataset.active || getActivePage();
+
+  el.innerHTML = `
+    <nav class="bottom-nav" data-fast-shell="true">
+      ${tabs.map(t => `
+        <a href="${t.href}" class="bottom-nav-item ${active === t.key ? 'active' : ''}">
+          <span class="bottom-nav-icon nav-emoji" aria-hidden="true">${t.icon}</span>
+          <span class="bottom-nav-label">${t.label}</span>
+        </a>`).join('')}
+    </nav>`;
+}
+
+async function renderComponent(el) {
+  const name = el.dataset.component;
+  try {
+    const mod = await import(`./${name}.js`);
+    if (typeof mod.render === 'function') {
+      await mod.render(el, { ...el.dataset });
+    } else {
+      console.warn(`[loader] ${name}.js has no export render()`);
+    }
+  } catch (err) {
+    console.error(`[loader] Failed to load component "${name}":`, err);
+    el.innerHTML = `<div style="padding:8px;color:#f43f5e;font-size:12px">
+      ⚠ Component "${name}" không tải được
+    </div>`;
+  }
+}
+
+async function requireFirebaseAuth() {
+  const { Auth } = await import('../shared/auth.js');
+  const ok = await Auth.requireAuth();
+  return ok ? Auth : null;
+}
+
+async function startStoreRealtime() {
+  const { Store } = await import('../shared/store.js');
+  // Do not await here. The UI can draw from local cache immediately and will
+  // update again when Firestore snapshots arrive.
+  Store.init().catch((err) => console.error('[loader] Store.init failed:', err));
+  return Store;
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
-  if (!(await Auth.requireAuth())) return;
-  await Store.init();
+  const slots = Array.from(document.querySelectorAll('[data-component]'));
 
-  const slots = document.querySelectorAll('[data-component]');
-
+  // 1) Show mobile shell immediately. This removes the blank/missing topbar and
+  // bottom menu while Firebase Auth / Firestore modules are loading on mobile.
   for (const el of slots) {
     const name = el.dataset.component;
-    try {
-      const mod = await import(`./${name}.js`);
-      if (typeof mod.render === 'function') {
-        await mod.render(el, { ...el.dataset });
-      } else {
-        console.warn(`[loader] ${name}.js has no export render()`);
-      }
-    } catch (err) {
-      console.error(`[loader] Failed to load component "${name}":`, err);
-      el.innerHTML = `<div style="padding:8px;color:#f43f5e;font-size:12px">
-        ⚠ Component "${name}" không tải được
-      </div>`;
-    }
+    if (name === 'topbar') renderTopbarSkeleton(el, { ...el.dataset });
+    if (name === 'bottom-nav') renderBottomNavFallback(el, { ...el.dataset });
   }
+
+  // Sidebar and bottom-nav do not need Firebase data; hydrate them immediately.
+  await Promise.all(slots
+    .filter(el => FAST_COMPONENTS.has(el.dataset.component))
+    .map(renderComponent));
+
+  // 2) Auth gate. If the user is not logged in, redirect before loading data.
+  const Auth = await requireFirebaseAuth();
+  if (!Auth) return;
+
+  // Topbar needs Auth.currentUser(), so hydrate it after Auth is ready.
+  await Promise.all(slots
+    .filter(el => el.dataset.component === 'topbar')
+    .map(renderComponent));
+
+  // 3) Start Firestore realtime in background, then render data components from
+  // the current local cache. Firestore snapshot events will refresh them.
+  startStoreRealtime();
+
+  await Promise.all(slots
+    .filter(el => DATA_COMPONENTS.has(el.dataset.component))
+    .map(renderComponent));
+
+  // 4) Render any remaining custom components.
+  await Promise.all(slots
+    .filter(el => {
+      const name = el.dataset.component;
+      return name !== 'topbar' && !FAST_COMPONENTS.has(name) && !DATA_COMPONENTS.has(name);
+    })
+    .map(renderComponent));
+});
+
+// iOS Safari can restore pages from bfcache. When it does, make sure the fast
+// shell is still present instead of waiting for a manual refresh.
+window.addEventListener('pageshow', (event) => {
+  if (!event.persisted) return;
+  document.querySelectorAll('[data-component="bottom-nav"]').forEach((el) => {
+    if (!el.querySelector('.bottom-nav')) renderBottomNavFallback(el, { ...el.dataset });
+  });
+  document.querySelectorAll('[data-component="topbar"]').forEach((el) => {
+    if (!el.querySelector('.topbar')) renderTopbarSkeleton(el, { ...el.dataset });
+  });
 });

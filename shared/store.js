@@ -311,7 +311,8 @@ const Store = {
         if (remain <= 0) break;
         if (debt.studentId !== sess.studentId) continue;
         if (debt.sessionId === sess.id) continue;
-        if (String(debt.date) > String(sess.date)) continue;
+        // Cho phép dạy bù trước: ca bù ở ngày sớm hơn vẫn được dùng để trừ
+        // cho khoản nợ phát sinh sau đó. Không chặn bằng điều kiện debt.date <= sess.date.
         if (Number(debt.slots || 0) <= 0 || debt.done) continue;
 
         const use = Math.min(Number(debt.slots || 0), remain);
