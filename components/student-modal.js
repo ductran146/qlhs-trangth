@@ -15,7 +15,7 @@ let _editingId = null;
 export function render(el, dataset) {
   el.innerHTML = `
     <div class="overlay" id="studentModalOverlay">
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="studentModalTitle">
+      <div class="modal student-modal" role="dialog" aria-modal="true" aria-labelledby="studentModalTitle">
         <div class="modal-handle"></div>
         <button class="modal-close" id="smClose" type="button" aria-label="Đóng">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -31,7 +31,7 @@ export function render(el, dataset) {
           </div>
         </div>
 
-        <div class="form-row">
+        <div class="form-row sm-dob-gender-row">
           <div class="form-group">
             <label class="form-label">Ngày sinh</label>
             <input class="form-input" id="smDob" type="date">
@@ -45,12 +45,12 @@ export function render(el, dataset) {
           </div>
         </div>
 
-        <div class="form-row">
-          <div class="form-group">
+        <div class="form-row sm-start-status-row">
+          <div class="form-group sm-start-date-group">
             <label class="form-label">Ngày bắt đầu học *</label>
             <input class="form-input" id="smStartDate" type="date">
           </div>
-          <div class="form-group">
+          <div class="form-group sm-status-group" id="smStatusGroup">
             <label class="form-label">Trạng thái học sinh</label>
             <select class="form-input form-select" id="smStatus">
               <option value="active">Đang học</option>
@@ -139,7 +139,15 @@ function _open(el, id = null) {
   _editingId = id;
   const st = id ? Store.get('students').find(s => s.id === id) : null;
 
-  el.querySelector('#studentModalTitle').textContent = id ? 'Sửa thông tin' : 'Thêm học sinh';
+  const isEdit = Boolean(id);
+  el.querySelector('#studentModalTitle').textContent = isEdit ? 'Sửa thông tin' : 'Thêm học sinh';
+
+  const startStatusRow = el.querySelector('.sm-start-status-row');
+  const statusGroup = el.querySelector('#smStatusGroup');
+  startStatusRow?.classList.toggle('is-add-mode', !isEdit);
+  startStatusRow?.classList.toggle('is-edit-mode', isEdit);
+  if (statusGroup) statusGroup.hidden = !isEdit;
+
   el.querySelector('#smName').value    = st?.name    || '';
   el.querySelector('#smDob').value     = st?.dob     || '';
   el.querySelector('#smGender').value  = st?.gender  || 'Nam';
@@ -224,7 +232,7 @@ function _save(el) {
     name,
     dob:        el.querySelector('#smDob').value,
     gender:     el.querySelector('#smGender').value,
-    status:     el.querySelector('#smStatus').value || 'active',
+    status:     _editingId ? (el.querySelector('#smStatus')?.value || 'active') : 'active',
     startDate,
     difficulties,
     goal:       el.querySelector('#smGoal').value.trim(),

@@ -666,3 +666,133 @@ textarea,
   font-weight: 600;
   background: var(--token-primary);
 }
+
+/* Mobile date input fix: keep native date picker but prevent iOS long localized value from breaking the modal */
+.form-input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 48px;
+  min-height: 48px;
+  max-height: 48px;
+  padding: 0 12px;
+  font-size: 16px;
+  line-height: 48px;
+  text-align: left;
+  white-space: nowrap;
+}
+.form-input[type="date"]::-webkit-date-and-time-value {
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+  font-size: 16px;
+  line-height: 1.2;
+}
+.form-input[type="date"]::-webkit-calendar-picker-indicator {
+  width: 18px;
+  height: 18px;
+  margin-left: 4px;
+}
+@media (max-width: 480px) {
+  .form-input[type="date"] {
+    font-size: 15px;
+    height: 46px;
+    min-height: 46px;
+    max-height: 46px;
+    line-height: 46px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  .form-input[type="date"]::-webkit-date-and-time-value {
+    font-size: 15px;
+  }
+}
+
+
+/* Student modal responsive fixes — keep date/select fields inside mobile width */
+.student-modal,
+.student-modal * {
+  min-width: 0;
+}
+
+.student-modal .form-group,
+.student-modal .form-row,
+.student-modal .form-input,
+.student-modal .form-select,
+.student-modal select.form-input {
+  max-width: 100%;
+}
+
+.student-modal .sm-start-status-row.is-add-mode {
+  grid-template-columns: 1fr;
+}
+
+.student-modal .sm-start-status-row.is-add-mode .sm-start-date-group {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+.student-modal .sm-status-group[hidden] {
+  display: none !important;
+}
+
+.student-modal input[type="date"].form-input,
+.student-modal input[type="time"].form-input,
+.student-modal select.form-input {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 480px) {
+  .student-modal {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .student-modal .form-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 12px;
+    width: 100%;
+  }
+
+  .student-modal .sm-start-status-row,
+  .student-modal .sm-start-status-row.is-add-mode {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .student-modal .sm-start-date-group {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .student-modal .form-input,
+  .student-modal .form-select,
+  .student-modal select.form-input {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    height: 46px;
+    min-height: 46px;
+    padding-left: 10px;
+    padding-right: 10px;
+    overflow: hidden;
+  }
+
+  .student-modal select.form-input,
+  .student-modal .form-select {
+    padding-right: 34px;
+    background-position: right 10px center;
+  }
+
+  .student-modal .form-input[type="date"] {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    text-align: left;
+  }
+
+  .student-modal .form-input[type="date"]::-webkit-date-and-time-value {
+    max-width: 100%;
+    text-align: left;
+  }
+}
