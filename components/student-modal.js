@@ -15,8 +15,13 @@ let _editingId = null;
 export function render(el, dataset) {
   el.innerHTML = `
     <div class="overlay" id="studentModalOverlay">
-      <div class="modal">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="studentModalTitle">
         <div class="modal-handle"></div>
+        <button class="modal-close" id="smClose" type="button" aria-label="Đóng">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M15 5L5 15M5 5L15 15" stroke="#454B50" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
         <div class="modal-title" id="studentModalTitle">Thêm học sinh</div>
 
         <div class="form-row">
@@ -33,7 +38,7 @@ export function render(el, dataset) {
           </div>
           <div class="form-group">
             <label class="form-label">Giới tính</label>
-            <select class="form-input" id="smGender">
+            <select class="form-input form-select" id="smGender">
               <option value="Nam">Nam</option>
               <option value="Nữ">Nữ</option>
             </select>
@@ -83,7 +88,7 @@ export function render(el, dataset) {
           </div>
           <div class="form-group">
             <label class="form-label">Số ca mỗi lịch học</label>
-            <select class="form-input" id="smDuration">
+            <select class="form-input form-select" id="smDuration">
               <option value="0.5">0.5 ca — 30 phút</option>
               <option value="1" selected>1 ca — 60 phút</option>
               <option value="1.5">1.5 ca — 90 phút</option>
@@ -109,11 +114,13 @@ export function render(el, dataset) {
   _buildDayPicker(el, []);
 
   // Events
+  el.querySelector('#smClose')?.addEventListener('click', close);
   el.querySelector('#smCancel').addEventListener('click', close);
   el.querySelector('#studentModalOverlay').addEventListener('click', e => {
     if (e.target === el.querySelector('#studentModalOverlay')) close();
   });
   el.querySelector('#smSave').addEventListener('click', () => _save(el));
+  _bindKeyboardAssist(el);
 
   // Expose open/close globally so pages can call them
   window.StudentModal = { open: (id) => _open(el, id), close };
@@ -138,11 +145,59 @@ function _open(el, id = null) {
   _buildDiffPicker(el, st?.difficulties || []);
   _buildDayPicker(el, st?.schedDays || []);
 
+  document.body.classList.add('modal-open');
   el.querySelector('#studentModalOverlay').classList.add('open');
+
+  requestAnimationFrame(() => {
+    el.querySelector('.modal')?.scrollTo({ top: 0, behavior: 'auto' });
+  });
 }
 
 function close() {
   document.querySelector('#studentModalOverlay')?.classList.remove('open');
+  document.body.classList.remove('modal-open');
+  document.querySelector('.modal.is-keyboard-open')?.classList.remove('is-keyboard-open');
+}
+
+function _bindKeyboardAssist(el) {
+  const overlay = el.querySelector('#studentModalOverlay');
+  const modal = el.querySelector('.modal');
+  if (!overlay || !modal || overlay.dataset.keyboardAssist === '1') return;
+
+  overlay.dataset.keyboardAssist = '1';
+
+  const scrollActiveFieldIntoView = (target) => {
+    if (!target?.matches?.('input, textarea, select')) return;
+    modal.classList.add('is-keyboard-open');
+
+    const run = () => {
+      target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+    };
+
+    requestAnimationFrame(run);
+    setTimeout(run, 260);
+    setTimeout(run, 520);
+  };
+
+  overlay.addEventListener('focusin', (event) => scrollActiveFieldIntoView(event.target));
+  overlay.addEventListener('focusout', () => {
+    setTimeout(() => {
+      const active = document.activeElement;
+      if (!overlay.contains(active) || !active?.matches?.('input, textarea, select')) {
+        modal.classList.remove('is-keyboard-open');
+      }
+    }, 120);
+  });
+
+  window.visualViewport?.addEventListener('resize', () => {
+    if (!overlay.classList.contains('open')) return;
+    const active = document.activeElement;
+    if (overlay.contains(active) && active?.matches?.('input, textarea, select')) {
+      const keyboardInset = Math.max(0, window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop);
+      modal.style.setProperty('--keyboard-inset', `${keyboardInset}px`);
+      scrollActiveFieldIntoView(active);
+    }
+  });
 }
 
 function _save(el) {
