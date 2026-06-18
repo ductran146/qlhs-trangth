@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nhật ký tuần — Nhật ký can thiệp</title>
+<link rel="stylesheet" href="../shared/styles.css">
+<link rel="stylesheet" href="../shared/components.css">
+</head>
+<body>
+<div class="app-shell">
+
+  <div data-component="sidebar" data-active="notes"></div>
+
+  <div class="main-content">
+    <div data-component="topbar" data-title="Nhật ký tuần"></div>
+
+    <div class="page" id="pageNotes"></div>
+  </div>
+
+  <div data-component="bottom-nav" data-active="notes"></div>
+</div>
+
+<script src="../components/components-loader.js" type="module"></script>
+
+<script type="module">
+import { Store, avatarColor, initials, fmtMoney, getWeekRange } from '../shared/store.js';
+
+const page = document.getElementById('pageNotes');
+let weekOffset = 0;
+const expandedGroups = new Set();
+
+function groupKey(studentId) {
+  const week = getWeekRange(weekOffset);
+  return `${studentId}-${week.start}`;
+}
+
+function render() {
+  const week     = getWeekRange(weekOffset);
+  const students = Store.get('students');
+  const sessions = Store.get('sessions')
+    .filter(s => s.date >= week.start && s.date <= week.end)
+    .sort((a,b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
+
+  let html = `
+    <div class="page-header">
+      <div>
+        <div class="page-title">Nhật ký can thiệp</div>
+        <div class="page-sub">${sessions.length} buổi học trong tuần</div>
+      </div>
+    </div>
+    <div class="week-nav">
+      <button class="icon-btn" id="btnPrevWeek" aria-label="Tuần trước">‹</button>
+      <span class="week-lbl">Tuần ${week.label}</span>
+      <button class="icon-btn" id="btnNextWeek" aria-label="Tuần sau">›</button>
+    </div>`;
+
+  if (!sessions.length) {
+    html += `
+      <div class="empty-state">
+        <div class="icon"><span class="empty-emoji emoji" aria-hidden="true">📓</span></div>
+        <div class="title">Chưa có buổi nào trong tuần này</div>
+        <div class="sub">Vào Điểm danh để ghi nhận các buổi học</div>
+      </div>`;
+    page.innerHTML = html;
+    bindNav();
+    return;
+  }
+
+  const byStudent = {};
+  for (const sess of sessions) {
+    const st = students.find(s => s.id === sess.studentId);
+    if (!st) continue;
+    if (!byStudent[st.id]) byStudent[st.id] = { student: st, sessions: [] };
+    byStudent[st.id].sessions.push(sess);
+  }
+
+  html += `<div class="notes-student-groups">`;
+
+  Object.values(byStudent).forEach(({ student: st, sessions: ss }, index) => {
+    const key = groupKey(st.id);
+    const isOpen = expandedGroups.size ? expandedGroups.has(key) : index === 0;
+    if (!expandedGroups.size && index === 0) expandedGroups.add(key);
+
+    const taughtCount = ss.filter(s => s.status === 'taught').length;
+    const totalSlots = ss.reduce((a, s) => a + (Number(s.duration) || 0), 0);
+    const income = ss
+      .filter(s => s.status === 'taught')
+      .reduce((a, s) => a + (Number(s.duration) || 0) * (st.feePerSlot || 0), 0);
+
+    html += `
+      <section class="notes-student-group ${isOpen ? 'is-open' : ''}" data-group-key="${key}">
+        <button class="notes-student-head" type="button" aria-expanded="${isOpen}">
+          <div class="avatar sm" style="background:${avatarColor(st.name)}">${initials(st.name)}</div>
+          <div class="notes-student-main">
+            <div class="notes-student-name">${st.name}</div>
+            <div class="notes-student-meta">${taughtCount}/${ss.length} buổi đã học · ${totalSlots.toLocaleString('vi-VN')} ca · ${fmtMoney(income)}</div>
+          </div>
+          <div class="notes-student-summary" aria-hidden="true">
+            <span class="notes-student-count">${ss.length} buổi</span>
+            <span class="notes-student-arrow">
+              <svg viewBox="0 0 20 20" focusable="false">
+                <path d="M5.5 7.5L10 12l4.5-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+          </div>
+        </button>
+        <div class="notes-student-body" ${isOpen ? '' : 'hidden'}>`;
+
+    for (const sess of ss) {
+      html += `<div data-component="session-card" data-session-id="${sess.id}"></div>`;
+    }
+
+    html += `
+        </div>
+      </section>`;
+  });
+
+  html += `</div>`;
+
+  page.innerHTML = html;
+  bindNav();
+  bindGroups();
+  loadSessionCards();
+}
+
+function bindNav() {
+  document.getElementById('btnPrevWeek')?.addEventListener('click', () => {
+    weekOffset--;
+    expandedGroups.clear();
+    render();
+  });
+  document.getElementById('btnNextWeek')?.addEventListener('click', () => {
+    weekOffset++;
+    expandedGroups.clear();
+    render();
+  });
+}
+
+function bindGroups() {
+  page.querySelectorAll('.notes-student-group').forEach(group => {
+    const head = group.querySelector('.notes-student-head');
+    const body = group.querySelector('.notes-student-body');
+    const key = group.dataset.groupKey;
+
+    head?.addEventListener('click', () => {
+      const willOpen = body.hasAttribute('hidden');
+      body.toggleAttribute('hidden', !willOpen);
+      group.classList.toggle('is-open', willOpen);
+      head.setAttribute('aria-expanded', String(willOpen));
+
+      if (willOpen) expandedGroups.add(key);
+      else expandedGroups.delete(key);
+
+      if (willOpen) loadSessionCards(group);
+    });
+  });
+}
+
+async function loadSessionCards(scope = document) {
+  const { render: renderCard } = await import('../components/session-card.js');
+  scope.querySelectorAll('[data-component="session-card"]').forEach(el => {
+    if (el.dataset.rendered === 'true') return;
+    renderCard(el, { ...el.dataset });
+    el.dataset.rendered = 'true';
+  });
+}
+
+window.exportWeek = () => {
+  const week     = getWeekRange(weekOffset);
+  const students = Store.get('students');
+  const sessions = Store.get('sessions')
+    .filter(s => s.date >= week.start && s.date <= week.end && s.status === 'taught')
+    .sort((a,b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
+
+  const byStudentMap = {};
+  for (const sess of sessions) {
+    const st = students.find(s => s.id === sess.studentId);
+    if (!st) continue;
+    if (!byStudentMap[st.id]) byStudentMap[st.id] = { student: st, sessions: [] };
+    byStudentMap[st.id].sessions.push(sess);
+  }
+
+  const exportData = {
+    weekLabel: `Tuần ${week.label}`,
+    weekStart: week.start,
+    weekEnd: week.end,
+    generatedAt: new Date().toLocaleString('vi-VN'),
+    students: Object.values(byStudentMap)
+  };
+
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `bao-cao-${week.start}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  alert(`Đã tải file bao-cao-${week.start}.json\nChạy: node export-word.js bao-cao-${week.start}.json`);
+};
+
+Store.subscribe('sessions', render);
+render();
+</script>
+
+</body>
+</html>

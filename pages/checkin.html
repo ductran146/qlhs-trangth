@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chấm công tuần — Nhật ký can thiệp</title>
+<link rel="stylesheet" href="../shared/styles.css">
+<link rel="stylesheet" href="../shared/components.css">
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- Component: sidebar (tablet+) -->
+  <div data-component="sidebar" data-active="checkin"></div>
+
+  <div class="main-content">
+
+    <!-- Component: topbar (mobile) -->
+    <div data-component="topbar" data-title="Chấm công"></div>
+
+    <div class="page" id="pageCheckin">
+      <div data-component="month-overview"></div>
+      <div data-component="week-attendance"></div>
+    </div>
+
+  </div>
+
+  <!-- Component: bottom-nav (mobile) -->
+  <div data-component="bottom-nav" data-active="checkin"></div>
+
+  <!-- Component: student-modal (shared modal, reused across pages) -->
+  <div data-component="student-modal"></div>
+</div>
+
+<!-- Components loader -->
+<script src="../components/components-loader.js" type="module"></script>
+</body>
+</html>

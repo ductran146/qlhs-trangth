@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Đăng nhập — Nhật ký can thiệp</title>
+<link rel="stylesheet" href="../shared/styles.css">
+<link rel="stylesheet" href="../shared/components.css">
+</head>
+<body class="login-body">
+<main class="login-page">
+  <section class="login-card" aria-labelledby="loginTitle">
+    <div class="login-brand">
+      <div class="login-brand-icon emoji" aria-hidden="true">🌱</div>
+      <div>
+        <h1 id="loginTitle">Nhật ký can thiệp</h1>
+        <p>Đăng nhập để quản lý học sinh và chấm công.</p>
+      </div>
+    </div>
+
+    <form id="loginForm" class="login-form" autocomplete="off">
+      <label>
+        <span>Tên đăng nhập</span>
+        <input id="username" name="username" type="text" inputmode="text" autocomplete="username" placeholder="Nhập tên đăng nhập" required>
+      </label>
+      <label>
+        <span>Mật khẩu</span>
+        <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Nhập mật khẩu" required>
+      </label>
+      <p class="login-error" id="loginError" hidden>Sai tên đăng nhập hoặc mật khẩu.</p>
+      <button type="submit" class="login-submit" id="loginSubmit">Đăng nhập</button>
+    </form>
+  </section>
+</main>
+
+<script type="module">
+  import { Auth } from '../shared/auth.js';
+
+  await Auth.ready();
+  if (Auth.isLoggedIn()) {
+    location.replace(Auth.consumeReturnTo() || 'checkin.html');
+  }
+
+  const form = document.getElementById('loginForm');
+  const error = document.getElementById('loginError');
+  const username = document.getElementById('username');
+  const password = document.getElementById('password');
+  const submit = document.getElementById('loginSubmit');
+
+  username.value = 'trangth';
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    error.hidden = true;
+    submit.disabled = true;
+    submit.textContent = 'Đang đăng nhập...';
+
+    const ok = await Auth.login(username.value, password.value);
+    if (!ok) {
+      error.hidden = false;
+      password.select();
+      submit.disabled = false;
+      submit.textContent = 'Đăng nhập';
+      return;
+    }
+
+    location.replace(Auth.consumeReturnTo() || 'checkin.html');
+  });
+</script>
+</body>
+</html>

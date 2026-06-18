@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thu nhập — Nhật ký can thiệp</title>
+<link rel="stylesheet" href="../shared/styles.css">
+<link rel="stylesheet" href="../shared/components.css">
+<style>
+.income-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+}
+.income-item:last-child { border-bottom: none; }
+.income-detail { flex: 1; min-width: 0; }
+.income-item-name { font-size: 14px; font-weight: 600; }
+.income-item-meta { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+.income-amt { font-size: 15px; font-weight: 800; color: var(--green-d); }
+.month-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <div data-component="sidebar" data-active="income"></div>
+
+  <div class="main-content">
+    <div data-component="topbar" data-title="Thu nhập"></div>
+
+    <div class="page" id="pageIncome"></div>
+  </div>
+
+  <div data-component="bottom-nav" data-active="income"></div>
+</div>
+
+<script src="../components/components-loader.js" type="module"></script>
+
+<script type="module">
+import { Store, avatarColor, initials, fmtMoney } from '../shared/store.js';
+
+const page = document.getElementById('pageIncome');
+let monthOffset = 0;
+
+function render() {
+  const now   = new Date();
+  now.setMonth(now.getMonth() + monthOffset);
+  const year  = now.getFullYear();
+  const month = now.getMonth();
+
+  const mStart = `${year}-${String(month+1).padStart(2,'0')}-01`;
+  const mEnd   = new Date(year, month+1, 0).toISOString().slice(0,10);
+  const mLabel = `Tháng ${month+1}/${year}`;
+
+  const students = Store.get('students');
+  const taught   = Store.get('sessions')
+    .filter(s => s.status === 'taught' && s.date >= mStart && s.date <= mEnd);
+  const absent   = Store.get('sessions')
+    .filter(s => s.status === 'absent' && s.date >= mStart && s.date <= mEnd);
+
+  let total = 0;
+  const byStudent = {};
+  for (const sess of taught) {
+    const st = students.find(s => s.id === sess.studentId);
+    if (!st) continue;
+    const amt = (st.feePerSlot || 0) * sess.duration;
+    total += amt;
+    if (!byStudent[st.id]) byStudent[st.id] = { student: st, count: 0, slots: 0, amt: 0 };
+    byStudent[st.id].count++;
+    byStudent[st.id].slots += sess.duration;
+    byStudent[st.id].amt   += amt;
+  }
+
+  const entries  = Object.values(byStudent);
+  const allDebts = Store.get('debts').filter(d => !d.done);
+
+  page.innerHTML = `
+    <div class="page-header">
+      <div>
+        <div class="page-title">Thu nhập</div>
+        <div class="page-sub">${mLabel}</div>
+      </div>
+    </div>
+
+    <div class="month-nav">
+      <button class="icon-btn" id="btnPrevMonth">‹</button>
+      <span class="week-lbl">${mLabel}</span>
+      <button class="icon-btn" id="btnNextMonth">›</button>
+    </div>
+
+    <div class="income-hero">
+      <div class="income-hero-lbl">TỔNG THU NHẬP THÁNG</div>
+      <div class="income-hero-val">${fmtMoney(total)}</div>
+      <div class="income-hero-sub">${taught.length} buổi đã dạy · ${students.length} học sinh</div>
+    </div>
+
+    <div class="summary-grid">
+      <div class="stat-box violet">
+        <div class="stat-val">${taught.length}</div>
+        <div class="stat-lbl">Buổi đã dạy</div>
+      </div>
+      <div class="stat-box green">
+        <div class="stat-val">${taught.reduce((a,s)=>a+s.duration,0)}</div>
+        <div class="stat-lbl">Tổng số ca</div>
+      </div>
+      <div class="stat-box amber">
+        <div class="stat-val">${allDebts.length}</div>
+        <div class="stat-lbl">Ca còn nợ</div>
+      </div>
+      <div class="stat-box red">
+        <div class="stat-val">${absent.length}</div>
+        <div class="stat-lbl">Buổi nghỉ</div>
+      </div>
+    </div>
+
+    <div class="section-label">Chi tiết theo học sinh</div>
+    <div class="card">
+      <div class="card-body">
+        ${entries.length
+          ? entries.map(({ student: st, count, slots, amt }) => `
+              <div class="income-item">
+                <div class="avatar sm" style="background:${avatarColor(st.name)}">${initials(st.name)}</div>
+                <div class="income-detail">
+                  <div class="income-item-name">${st.name}</div>
+                  <div class="income-item-meta">${count} buổi · ${slots} ca · ${fmtMoney(st.feePerSlot)}/ca</div>
+                </div>
+                <div class="income-amt">${fmtMoney(amt)}</div>
+              </div>`).join('')
+          : `<div class="text-muted fs-13" style="padding:8px 0;text-align:center">
+               Chưa có buổi học nào tháng này
+             </div>`
+        }
+      </div>
+    </div>`;
+
+  document.getElementById('btnPrevMonth')?.addEventListener('click', () => { monthOffset--; render(); });
+  document.getElementById('btnNextMonth')?.addEventListener('click', () => { monthOffset++; render(); });
+}
+
+Store.subscribe('sessions', render);
+render();
+</script>
+</body>
+</html>
