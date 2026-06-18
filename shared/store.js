@@ -4,18 +4,14 @@
  * while data is synced with Cloud Firestore in realtime.
  */
 
-import { Auth } from './auth.js';
-import {
-  db,
-  collection,
-  doc,
-  setDoc,
-  deleteDoc,
-  onSnapshot
-} from './firebase.js';
+// Firebase/Auth are imported lazily in Store.init().
+// This keeps normal page rendering fast on mobile tab switches because
+// week-attendance/month-overview can draw from local cache before the
+// Firebase CDN SDK and Firestore snapshots finish loading.
 
 const AVATAR_COLORS = ['#796EFF','#2ECC71','#FFB800','#FF2323','#02AAD8','#9D70F9','#08D1A0','#FF784E'];
 const COLLECTION_KEYS = ['students', 'sessions', 'debts', 'reports'];
+const BOOTSTRAP_KEY = 'nkct_bootstrap_state';
 
 const DEFAULT = {
   students: [
@@ -42,12 +38,39 @@ let _initPromise = null;
 let _teacherId = null;
 let _unsubscribers = [];
 let _firebaseReady = false;
+let _firebaseApi = null;
+let _authApi = null;
+let _syncAfterReady = false;
+
+async function loadFirebaseRuntime() {
+  if (_firebaseApi && _authApi) return { ..._firebaseApi, Auth: _authApi.Auth };
+  const [{ Auth }, firebase] = await Promise.all([
+    import('./auth.js'),
+    import('./firebase.js')
+  ]);
+  _authApi = { Auth };
+  _firebaseApi = firebase;
+  return { ...firebase, Auth };
+}
+
 
 function readLocalOrDefault(key) {
   try {
     const raw = localStorage.getItem('nkct_' + key);
     if (raw) return JSON.parse(raw);
   } catch (_err) {}
+
+  // Fallback aggregate cache. This makes every page draw the last known data
+  // immediately after mobile tab/page navigation, even before Firebase Auth
+  // restores the session or Firestore returns the first snapshot.
+  try {
+    const boot = localStorage.getItem(BOOTSTRAP_KEY);
+    if (boot) {
+      const parsed = JSON.parse(boot);
+      if (Array.isArray(parsed?.[key])) return parsed[key];
+    }
+  } catch (_err) {}
+
   return DEFAULT[key] ? structuredCloneSafe(DEFAULT[key]) : [];
 }
 
@@ -56,18 +79,27 @@ function structuredCloneSafe(value) {
 }
 
 function teacherCollection(key) {
-  if (!_teacherId) throw new Error('Firestore teacherId is not ready.');
-  return collection(db, 'teachers', _teacherId, key);
+  if (!_teacherId || !_firebaseApi) throw new Error('Firestore teacherId is not ready.');
+  return _firebaseApi.collection(_firebaseApi.db, 'teachers', _teacherId, key);
 }
 
 function teacherDoc(key, id) {
-  if (!_teacherId) throw new Error('Firestore teacherId is not ready.');
-  return doc(db, 'teachers', _teacherId, key, String(id));
+  if (!_teacherId || !_firebaseApi) throw new Error('Firestore teacherId is not ready.');
+  return _firebaseApi.doc(_firebaseApi.db, 'teachers', _teacherId, key, String(id));
+}
+
+function persistBootstrapCache() {
+  try {
+    const payload = Object.fromEntries(COLLECTION_KEYS.map(key => [key, _cache[key] || []]));
+    payload.updatedAt = new Date().toISOString();
+    localStorage.setItem(BOOTSTRAP_KEY, JSON.stringify(payload));
+  } catch (_err) {}
 }
 
 function setLocalCache(key, value, shouldEmit = true) {
   _cache[key] = Array.isArray(value) ? value : [];
   try { localStorage.setItem('nkct_' + key, JSON.stringify(_cache[key])); } catch (_err) {}
+  persistBootstrapCache();
   if (shouldEmit) {
     Store.emit(key, _cache[key]);
     Store.emit('*');
@@ -75,7 +107,10 @@ function setLocalCache(key, value, shouldEmit = true) {
 }
 
 async function syncCollectionToFirestore(key, value) {
-  if (!_firebaseReady || !_teacherId) return;
+  if (!_firebaseReady || !_teacherId || !_firebaseApi) {
+    _syncAfterReady = true;
+    return;
+  }
   const list = Array.isArray(value) ? value : [];
   const nextIds = new Set(list.map(item => String(item.id)).filter(Boolean));
   const previousIds = _remoteIds[key] || new Set();
@@ -83,10 +118,10 @@ async function syncCollectionToFirestore(key, value) {
   const writes = [];
   for (const item of list) {
     if (!item?.id) continue;
-    writes.push(setDoc(teacherDoc(key, item.id), cleanForFirestore(item), { merge: false }));
+    writes.push(_firebaseApi.setDoc(teacherDoc(key, item.id), cleanForFirestore(item), { merge: false }));
   }
   for (const id of previousIds) {
-    if (!nextIds.has(id)) writes.push(deleteDoc(teacherDoc(key, id)));
+    if (!nextIds.has(id)) writes.push(_firebaseApi.deleteDoc(teacherDoc(key, id))); 
   }
 
   _remoteIds[key] = nextIds;
@@ -117,6 +152,7 @@ const Store = {
     if (_initPromise) return _initPromise;
 
     _initPromise = (async () => {
+      const { Auth, onSnapshot } = await loadFirebaseRuntime();
       const authUser = await Auth.ready();
       if (!authUser) return false;
       const user = Auth.currentUser();
@@ -125,24 +161,39 @@ const Store = {
 
       _unsubscribers.forEach(unsub => { try { unsub(); } catch (_err) {} });
       _unsubscribers = [];
+      _firebaseReady = true;
 
-      const firstPromises = COLLECTION_KEYS.map(key => new Promise((resolve) => {
+      // Attach realtime listeners, but do NOT await the first snapshots.
+      // On iPhone/Safari page navigation can re-download Firebase SDK + wait for
+      // Firestore. Waiting here made the Checkin tab appear blank for 5–30s.
+      COLLECTION_KEYS.forEach(key => {
+        const localBeforeSnapshot = Array.isArray(_cache[key]) ? [..._cache[key]] : [];
         const unsubscribe = onSnapshot(teacherCollection(key), (snapshot) => {
-          const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-          _remoteIds[key] = new Set(list.map(item => String(item.id)));
+          const remoteList = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+          const remoteIds = new Set(remoteList.map(item => String(item.id)));
+          _remoteIds[key] = remoteIds;
+
+          // First run migration guard: if Firestore is empty but this browser
+          // already has local data, upload local cache instead of clearing the UI.
+          if (!_firstSnapshot[key] && remoteList.length === 0 && localBeforeSnapshot.length > 0) {
+            _firstSnapshot[key] = true;
+            syncCollectionToFirestore(key, localBeforeSnapshot);
+            return;
+          }
+
           _firstSnapshot[key] = true;
-          setLocalCache(key, list, true);
-          resolve(true);
+          setLocalCache(key, remoteList, true);
         }, (error) => {
           console.error(`[store] Firestore listener failed for ${key}:`, error);
-          resolve(false);
         });
         _unsubscribers.push(unsubscribe);
-      }));
+      });
 
-      await Promise.all(firstPromises);
-      _firebaseReady = true;
-      await maybeMigrateLocalData();
+      if (_syncAfterReady) {
+        _syncAfterReady = false;
+        COLLECTION_KEYS.forEach(key => syncCollectionToFirestore(key, _cache[key]));
+      }
+
       return true;
     })();
 

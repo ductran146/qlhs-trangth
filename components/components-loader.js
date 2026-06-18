@@ -119,27 +119,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (name === 'bottom-nav') renderBottomNavFallback(el, { ...el.dataset });
   }
 
+  // Start Auth + Firestore as early as possible, but do not await it.
+  // This reduces the delay before remote data reaches Notes/Students/Income
+  // while still letting every page render from local cache first.
+  const authAndStoreBoot = requireFirebaseAuth().then(async (Auth) => {
+    if (!Auth) return null;
+    await Promise.all(slots
+      .filter(el => el.dataset.component === 'topbar')
+      .map(renderComponent));
+    return startStoreRealtime();
+  }).catch((err) => {
+    console.error('[loader] Auth/Firestore boot failed:', err);
+    return null;
+  });
+
   // Sidebar and bottom-nav do not need Firebase data; hydrate them immediately.
   await Promise.all(slots
     .filter(el => FAST_COMPONENTS.has(el.dataset.component))
     .map(renderComponent));
 
-  // 2) Auth gate. If the user is not logged in, redirect before loading data.
-  const Auth = await requireFirebaseAuth();
-  if (!Auth) return;
-
-  // Topbar needs Auth.currentUser(), so hydrate it after Auth is ready.
-  await Promise.all(slots
-    .filter(el => el.dataset.component === 'topbar')
-    .map(renderComponent));
-
-  // 3) Start Firestore realtime in background, then render data components from
-  // the current local cache. Firestore snapshot events will refresh them.
-  startStoreRealtime();
-
+  // 2) Render data components immediately from local cache.
+  // Important on mobile: do not wait for Firebase Auth/Firestore SDK imports or
+  // first snapshots before showing Checkin content. Firestore realtime starts in
+  // the background below and will refresh these components automatically.
   await Promise.all(slots
     .filter(el => DATA_COMPONENTS.has(el.dataset.component))
     .map(renderComponent));
+
+  // 3) Auth gate + Firestore realtime already started in the background above.
+  // Keep the promise referenced so browsers do not treat it as unused work.
+  void authAndStoreBoot;
 
   // 4) Render any remaining custom components.
   await Promise.all(slots

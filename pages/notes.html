@@ -199,7 +199,10 @@ window.exportWeek = () => {
   alert(`Đã tải file bao-cao-${week.start}.json\nChạy: node export-word.js bao-cao-${week.start}.json`);
 };
 
+Store.subscribe('students', render);
 Store.subscribe('sessions', render);
+Store.subscribe('debts', render);
+Store.subscribe('*', render);
 render();
 </script>
 

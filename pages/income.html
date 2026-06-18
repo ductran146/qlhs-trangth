@@ -139,7 +139,10 @@ function render() {
   document.getElementById('btnNextMonth')?.addEventListener('click', () => { monthOffset++; render(); });
 }
 
+Store.subscribe('students', render);
 Store.subscribe('sessions', render);
+Store.subscribe('debts', render);
+Store.subscribe('*', render);
 render();
 </script>
 </body>
