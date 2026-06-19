@@ -62,7 +62,6 @@ function draw(el) {
         <div>
           <div class="section-label">Chấm công tuần</div>
           <h2>Tuần ${week.label}</h2>
-          <p>Hiển thị đầy đủ ${FULL_WEEK_LABEL}; bấm vào từng ô để chấm đủ, thiếu buổi, nghỉ, cô bận hoặc dạy bù.</p>
         </div>
         <button class="btn-sm" data-action="add-manual">+ Thêm buổi</button>
       </div>
