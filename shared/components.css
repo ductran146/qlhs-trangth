@@ -3060,3 +3060,67 @@ input[type="search"]:focus {
     font-size: 16px !important;
   }
 }
+
+/* ── iOS SAFARI STRICT NO-ZOOM PATCH ─────────────────────────
+   Đặt cuối components.css vì file này load sau styles.css. */
+@supports (-webkit-touch-callout: none) {
+  @media screen and (max-width: 767px) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+    textarea,
+    select,
+    [contenteditable="true"],
+    .form-input,
+    .form-select,
+    .note-ta,
+    .ai-summary-textarea,
+    .student-search,
+    .search-input,
+    .filter-input,
+    .attendance-debt-select,
+    .week-status-select,
+    .week-calendar-select,
+    .student-modal input,
+    .student-modal textarea,
+    .student-modal select,
+    .modal input,
+    .modal textarea,
+    .modal select,
+    .attendance-modal input,
+    .attendance-modal textarea,
+    .attendance-modal select,
+    .pending-dialog input,
+    .pending-dialog textarea,
+    .pending-dialog select {
+      font-size: 16px !important;
+      line-height: 1.35 !important;
+      -webkit-text-size-adjust: 100% !important;
+    }
+
+    input::placeholder,
+    textarea::placeholder,
+    .form-input::placeholder,
+    .note-ta::placeholder,
+    .ai-summary-textarea::placeholder,
+    .student-search::placeholder,
+    .search-input::placeholder,
+    .filter-input::placeholder {
+      font-size: 16px !important;
+      line-height: 1.35 !important;
+    }
+
+    input[type="date"]::-webkit-date-and-time-value,
+    input[type="time"]::-webkit-date-and-time-value,
+    input[type="datetime-local"]::-webkit-date-and-time-value,
+    input::-webkit-datetime-edit,
+    input::-webkit-datetime-edit-fields-wrapper,
+    input::-webkit-datetime-edit-text,
+    input::-webkit-datetime-edit-hour-field,
+    input::-webkit-datetime-edit-minute-field,
+    input::-webkit-datetime-edit-day-field,
+    input::-webkit-datetime-edit-month-field,
+    input::-webkit-datetime-edit-year-field {
+      font-size: 16px !important;
+      line-height: 1.35 !important;
+    }
+  }
+}
