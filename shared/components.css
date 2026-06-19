@@ -82,7 +82,7 @@
 .sidebar-nav-item {
   display: flex; align-items: center; gap: 10px;
   padding: 10px 10px; border-radius: var(--r-sm);
-  font-size: 14px; font-weight: 500; color: var(--ink-2);
+  font-size: 14px; font-weight: 400; color: var(--ink-2);
   text-decoration: none; transition: all .15s; margin-bottom: 2px;
 }
 .sidebar-nav-item:hover  { background: var(--bg); color: var(--ink); }
@@ -107,7 +107,7 @@
 .bottom-nav-item {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 3px; text-decoration: none;
-  color: var(--ink-3); font-size: 10px; font-weight: 500;
+  color: var(--ink-3); font-size: 10px; font-weight: 400;
   padding: 6px 4px; transition: color .15s;
 }
 .bottom-nav-icon { font-size: 20px; line-height: 1; display: inline-flex; }
@@ -218,7 +218,7 @@
   border-radius: var(--r-xl);
   padding: 24px 20px; color: var(--token-surface); margin-bottom: 16px;
 }
-.income-hero-lbl { font-size: 12px; opacity: .8; font-weight: 500; letter-spacing: .3px; }
+.income-hero-lbl { font-size: 12px; opacity: .8; font-weight: 400; letter-spacing: .3px; }
 .income-hero-val { font-size: 36px; font-weight: 800; margin-top: 4px; letter-spacing: -1px; }
 .income-hero-sub { font-size: 13px; opacity: .75; margin-top: 6px; }
 
@@ -2871,7 +2871,7 @@
   color: #101013 !important;
   font-family: Inter, var(--font, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif) !important;
   font-size: 14px !important;
-  font-weight: 500 !important;
+  font-weight: 400 !important;
   line-height: 20px !important;
   outline: none !important;
   cursor: pointer !important;
@@ -2949,7 +2949,7 @@ input[type="search"] {
   color: var(--ds-field-text, #101013) !important;
   font-family: Inter, var(--font, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif) !important;
   font-size: 14px !important;
-  font-weight: 500 !important;
+  font-weight: 400 !important;
   line-height: 20px !important;
   outline: none !important;
 }
