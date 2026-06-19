@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thêm nhận xét — Nhật ký can thiệp</title>
+<link rel="stylesheet" href="../shared/styles.css">
+<link rel="stylesheet" href="../shared/components.css">
+</head>
+<body>
+<div class="app-shell">
+  <div data-component="sidebar" data-active="students"></div>
+
+  <div class="main-content">
+    <div data-component="topbar" data-title="Thêm nhận xét"></div>
+    <div class="page session-note-edit-page" id="pageSessionNoteEdit"></div>
+  </div>
+
+  <div data-component="bottom-nav" data-active="students"></div>
+</div>
+
+<script src="../components/components-loader.js" type="module"></script>
+
+<script type="module">
+import {
+  Store,
+  fmtDate,
+  statusLabel,
+} from '../shared/store.js';
+
+const page = document.getElementById('pageSessionNoteEdit');
+const params = new URLSearchParams(location.search);
+const sessionId = params.get('sessionId');
+const studentId = params.get('studentId');
+
+function sessionNoteText(session) {
+  const direct = String(session?.noteText || session?.note || session?.noteContent || '').trim();
+  if (direct) return direct;
+  return [session?.noteSkill, session?.noteBehavior, session?.noteProgress, session?.noteParent]
+    .map(v => String(v || '').trim())
+    .filter(Boolean)
+    .join('\n');
+}
+
+function escapeHTML(value) {
+  return String(value || '').replace(/[&<>\"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+}
+
+function backUrl() {
+  return `student-detail.html?id=${encodeURIComponent(studentId || '')}`;
+}
+
+function render() {
+  const sessions = Store.get('sessions') || [];
+  const students = Store.get('students') || [];
+  const session = sessions.find(s => s.id === sessionId);
+  const student = students.find(s => s.id === (studentId || session?.studentId));
+
+  if (!session) {
+    page.innerHTML = `
+      <div class="page-header">
+        <div>
+          <a class="back-link" href="${backUrl()}">← Chi tiết học sinh</a>
+          <div class="page-title">Thêm nhận xét</div>
+          <div class="page-sub">Không tìm thấy ca học cần nhập nhận xét.</div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const currentNote = sessionNoteText(session);
+  page.innerHTML = `
+    <div class="page-header session-note-edit-header">
+      <div>
+        <a class="back-link" href="${backUrl()}">← Chi tiết học sinh</a>
+        <div class="page-title">Thêm nhận xét</div>
+        <div class="page-sub">${escapeHTML(student?.name || 'Học sinh')} · ${fmtDate(session.date)} · ${escapeHTML(session.startTime || '--:--')} · ${session.duration || 1} ca · ${statusLabel(session.status) || 'Chưa chấm'}</div>
+      </div>
+    </div>
+
+    <section class="session-note-edit-card">
+      <label class="session-note-edit-label" for="teacherNote">Nhận xét của giáo viên</label>
+      <textarea id="teacherNote" class="session-note-edit-textarea" rows="10" placeholder="Nhập nội dung nhận xét buổi học...">${escapeHTML(currentNote)}</textarea>
+      <div class="session-note-edit-actions">
+        <a class="btn btn-outline" href="${backUrl()}">Hủy</a>
+        <button class="btn btn-primary" id="btnSaveNote">Lưu nhận xét</button>
+      </div>
+    </section>`;
+
+  document.getElementById('btnSaveNote')?.addEventListener('click', () => {
+    const content = document.getElementById('teacherNote')?.value.trim() || '';
+    Store.upsertSession({
+      ...session,
+      noteText: content,
+      note: content,
+      noteContent: content,
+      noteSkill: '',
+      noteBehavior: '',
+      noteProgress: '',
+      noteParent: '',
+      updatedAt: new Date().toISOString(),
+    });
+    window.location.href = backUrl();
+  });
+
+  setTimeout(() => document.getElementById('teacherNote')?.focus(), 80);
+}
+
+Store.subscribe('sessions', render);
+Store.subscribe('students', render);
+render();
+</script>
+</body>
+</html>

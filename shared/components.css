@@ -733,16 +733,17 @@
 .student-profile-grid span {
   display: block;
   color: var(--ink-3);
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .02em;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
   margin-bottom: 4px;
 }
 .student-profile-grid strong {
   display: block;
   color: var(--ink);
   font-size: 13px;
+  font-weight: 500;
   line-height: 1.35;
 }
 .detail-section-head {
@@ -766,7 +767,7 @@
 }
 .student-summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 12px;
 }
@@ -922,11 +923,8 @@
 
 /* ── AI SUMMARY + DESIGN SYSTEM ALIGNMENT ───────────── */
 .ai-summary-card {
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
   background: var(--surface);
-  box-shadow: var(--sh);
-  padding: var(--space-4);
+  padding: 16px 0 16px 0;
   margin-bottom: var(--space-4);
 }
 .ai-summary-head {
@@ -2218,397 +2216,44 @@
   }
 }
 
-
-/* ═══════════════════════════════════════════
-   DUCTRAN EDUCATION DESIGN SYSTEM — COMPONENT ALIGNMENT
-   Keep TossFace emoji and close dialog SVG unchanged.
-   ═══════════════════════════════════════════ */
-
-/* Header + bottom nav for all breakpoints */
-.topbar {
-  display: flex !important;
-  height: 60px;
-  padding: 0 20px;
-  background: rgba(255,255,255,.96);
-  border-bottom: 1px solid var(--token-border);
-  backdrop-filter: blur(14px);
+/* Plain student notes: single free-text content, not split by skill categories */
+.session-note-form .note-grid.note-grid-plain {
+  grid-template-columns: 1fr;
 }
-.topbar-icon {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  background: var(--token-primary);
-  box-shadow: 0 2px 6px rgba(115,91,249,.24);
-}
-.topbar-title {
-  color: var(--token-text-title);
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-.topbar-date,
-.topbar-user {
-  color: var(--token-text-placeholder);
-  font-weight: 400;
-}
-.sidebar,
-[data-component="sidebar"] { display: none !important; }
-.bottom-nav,
-[data-component="bottom-nav"] { display: grid !important; }
-.bottom-nav {
-  height: var(--nav-h);
-  border-top: 1px solid var(--token-border);
-  background: rgba(255,255,255,.98);
-  box-shadow: var(--sh-bottom-menu);
-  backdrop-filter: blur(14px);
-}
-.bottom-nav-item {
-  color: var(--token-text-placeholder);
-  font-weight: 400;
-}
-.bottom-nav-item.active {
-  color: var(--token-primary);
-  font-weight: 600;
-}
-.bottom-nav-icon { font-size: 20px; }
-
-/* Surfaces */
-.month-overview,
-.week-attendance,
-.student-profile-card,
-.detail-report-card,
-.notes-student-group,
-.session-card,
-.checkin-card,
-.stat-box,
-.ai-summary-card,
-.pending-dialog,
-.attendance-modal,
-.pending-attendance-modal,
-.modal {
-  border: 1px solid var(--token-border);
-  border-radius: var(--r-xl);
-  background: var(--surface);
-  box-shadow: var(--sh);
-}
-.month-overview,
-.week-attendance,
-.student-profile-card,
-.detail-report-card,
-.ai-summary-card { padding: 20px; }
-.month-overview-head,
-.week-attendance-head,
-.detail-section-head,
-.ai-summary-head {
-  gap: 16px;
-  margin-bottom: 16px;
-}
-.month-overview h2,
-.week-attendance-head h2,
-.detail-section-head h2,
-.ai-summary-head .summary-note-title {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--token-text-title);
-  letter-spacing: -0.01em;
-}
-.month-overview p,
-.week-attendance-head p,
-.ai-summary-head p,
-.detail-section-head p {
-  color: var(--token-text-placeholder);
-  font-weight: 400;
-}
-
-/* Statistics */
-.month-stat-card,
-.student-summary-grid div,
-.stat-box,
-.week-attendance-toolbar,
-.summary-note-box,
-.week-report-item {
-  border: 1px solid var(--token-border);
-  border-radius: var(--r-lg);
-  background: var(--token-background);
-}
-.month-stat-card { padding: 14px 12px; }
-.month-stat-value,
-.student-summary-grid strong,
-.stat-val {
-  font-weight: 700;
-  color: var(--token-text-title);
-}
-.month-stat-card.violet .month-stat-value,
-.student-summary-grid strong { color: var(--token-primary); }
-.month-stat-card.green .month-stat-value,
-.stat-box.green .stat-val { color: var(--token-success-text); }
-.month-stat-card.amber .month-stat-value,
-.stat-box.amber .stat-val { color: var(--token-warning-text); }
-.month-stat-card.red .month-stat-value,
-.stat-box.red .stat-val { color: var(--token-error-text); }
-.month-stat-label,
-.student-summary-grid span,
-.stat-lbl,
-.month-student-meta,
-.week-attendance-summary span {
-  color: var(--token-text-placeholder);
-  font-weight: 400;
-}
-
-/* Lists and rows */
-.month-student-row,
-.pending-dialog-item,
-.session-note-item,
-.notes-student-head,
-.week-mobile-row {
-  border-color: var(--token-border);
-}
-.month-student-main strong,
-.notes-student-name,
-.session-note-head strong,
-.pending-dialog-head h3 {
-  color: var(--token-text-title);
-  font-weight: 700;
-}
-.month-student-meta,
-.notes-student-meta,
-.session-note-head span:not(.status-pill),
-.pending-dialog-head p,
-.pending-dialog-item span,
-.pending-dialog-item em {
-  color: var(--token-text-placeholder);
-  font-weight: 400;
-}
-.notes-student-count,
-.month-student-count,
-.status-pill {
-  background: var(--token-background);
-  color: var(--token-text-content);
-  font-weight: 500;
-}
-
-/* Week attendance table */
-.week-table-wrap {
-  border-color: var(--token-border);
-  border-radius: var(--r-lg);
-}
-.week-table { table-layout: fixed; }
-.week-table th {
-  background: var(--token-background);
-  color: var(--token-text-content-2);
-  font-weight: 500;
-}
-.week-table th small,
-.week-student-cell span {
-  color: var(--token-text-placeholder);
-  font-weight: 400;
-}
-.week-table td,
-.week-table th {
-  border-color: var(--token-border);
-}
-.week-student-cell strong {
-  color: var(--token-text-title);
-  font-weight: 500;
-}
-.attendance-pill {
-  border-radius: var(--r-md);
-  border-color: var(--token-border);
-  background: var(--surface);
-  color: var(--token-text-content);
-  box-shadow: none;
-}
-.attendance-pill,
-.attendance-pill span,
-.attendance-pill small {
-  font-weight: 400 !important;
-}
-.attendance-pill:hover {
-  border-color: var(--token-primary);
-  box-shadow: var(--focus-ring);
-}
-.status-pending .attendance-pill,
-.status-partial .attendance-pill {
-  background: var(--token-warning-bg);
-  border-color: var(--token-warning-soft);
-  color: var(--token-warning-text);
-}
-.status-taught .attendance-pill {
-  background: var(--token-success-bg);
-  border-color: var(--token-success-soft);
-  color: var(--token-success-text);
-}
-.status-absent .attendance-pill {
-  background: var(--token-error-bg);
-  border-color: var(--token-error-soft);
-  color: var(--token-error-text);
-}
-.status-busy .attendance-pill {
-  background: var(--token-warning-bg);
-  border-color: var(--token-warning-soft);
-  color: var(--token-warning-text);
-}
-.status-makeup .attendance-pill {
-  background: var(--token-primary-soft);
-  border-color: #dee0ff;
-  color: var(--token-primary-hover);
-}
-.status-off .attendance-pill,
-.status-prestart .attendance-pill,
-.week-cell.is-future .attendance-pill,
-.week-calendar-cell.is-future .attendance-pill {
-  background: var(--token-background);
-  border-color: var(--token-border);
-  color: var(--token-text-placeholder);
-}
-
-/* Dialogs / modals — preserve SVG close icon from JS */
-.attendance-modal-backdrop,
-.pending-dialog-backdrop,
-.pending-attendance-backdrop,
-.overlay.open {
-  background: rgba(7,4,49,.50);
-  backdrop-filter: blur(4px);
-}
-.attendance-modal,
-.pending-attendance-modal,
-.pending-dialog,
-.modal {
-  border-radius: 20px;
-  border: 1px solid var(--token-border);
-  box-shadow: var(--sh-soft);
-}
-.attendance-modal { padding: 20px; }
-.attendance-modal-head,
-.pending-dialog-head {
-  border-color: var(--token-border);
-}
-.attendance-modal-head strong,
-.pending-dialog-head h3,
-.modal-title {
-  color: var(--token-text-title);
-  font-weight: 700;
-}
-.attendance-modal-head span,
-.attendance-label,
-.attendance-hint,
-.pending-dialog-head p,
-.pending-dialog-item span,
-.pending-dialog-item em {
-  color: var(--token-text-placeholder);
-  font-weight: 400;
-}
-.attendance-status-grid,
-.attendance-slot-grid {
-  gap: 10px;
-}
-.attendance-status-choice {
-  min-height: 40px;
-  border-radius: var(--r-md);
-  border-color: var(--token-border);
-  background: var(--surface);
-  color: var(--token-text-content);
-  font-weight: 600;
-}
-.attendance-status-choice.active {
-  border-color: var(--token-primary);
-  background: var(--token-primary-soft);
-  color: var(--token-primary-hover);
-  box-shadow: var(--focus-ring);
-}
-.attendance-hint { margin-bottom: 20px; }
-.attendance-modal-actions { gap: 12px; }
-.attendance-modal-close,
-.pending-dialog-close,
-.modal-close {
-  color: #454B50;
+.note-block.note-block-plain {
+  padding: 0;
+  border: 0;
   background: transparent;
-  border-radius: var(--r-sm);
 }
-.attendance-modal-close:hover,
-.pending-dialog-close:hover,
-.modal-close:hover {
-  background: var(--token-background);
-}
-
-/* Pending dialog */
-.pending-dialog-body { padding: 16px 20px 20px; }
-.pending-dialog-toolbar {
-  padding: 0 0 12px;
-  border-bottom: 0 !important;
-  margin-bottom: 8px;
-}
-.pending-mark-all {
-  color: var(--token-primary) !important;
-  font-weight: 600;
-  gap: 8px;
-}
-.pending-mark-all svg path { stroke: currentColor !important; }
-.pending-dialog-item {
-  border-radius: var(--r-lg);
-  background: var(--token-background);
-  padding: 14px;
-}
-.pending-dialog-item strong {
-  font-weight: 500;
-  color: var(--token-text-title);
-}
-.pending-item-action {
-  border-radius: var(--r-md);
-  background: var(--surface);
-  color: var(--token-primary);
-  border: 1px solid var(--token-border);
-  font-weight: 600;
+.session-note-plain {
+  box-sizing: border-box;
+  padding: var(--space-3);
+  background: var(--bg);
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-line;
+  display: block;
 }
 
-/* Notes and forms */
-.sc-body.open { padding: 20px; gap: 20px; }
-.session-note-view { gap: 12px; }
-.note-block {
-  padding: 12px;
-  border-color: var(--token-border);
-  border-radius: var(--r-lg);
-  background: var(--token-background);
+.session-note-plain.is-empty {
+  min-height: 56px;
+  padding-block: 0;
+  display: flex;
+  align-items: center;
 }
-.note-block-label,
-.note-field-label {
-  color: var(--token-text-placeholder);
-  font-weight: 400;
-}
-.note-block-text,
-.session-note-line p,
-.week-report-item p,
-.summary-note-box ul {
-  color: var(--token-text-content);
-  font-weight: 400;
-}
-.session-note-btn.secondary {
-  background: var(--token-primary-soft);
-  color: var(--token-primary-hover);
-  border-color: transparent;
-}
-.session-note-btn.primary,
-.btn-primary {
-  background: var(--token-primary);
-  color: var(--token-surface);
-}
-.session-note-btn.primary:hover,
-.btn-primary:hover { background: var(--token-primary-hover); }
 
-/* Mobile compact */
 @media (max-width: 767px) {
-  .month-overview,
-  .week-attendance,
-  .student-profile-card,
-  .detail-report-card,
-  .ai-summary-card { padding: 16px; }
-  .topbar { padding: 0 16px; }
-  .attendance-modal,
-  .pending-dialog,
-  .pending-attendance-modal { border-radius: 20px 20px 0 0; }
+  .session-note-plain {
+    padding: 10px var(--space-3);
+  }
+  .session-note-plain.is-empty {
+    min-height: 52px;
+    padding-block: 0;
+  }
 }
 
-/* ── STUDENT DETAIL MOBILE COMPACT INFO GRID ───────────── */
+/* Student detail mobile compact info: 3 columns per row */
 @media (max-width: 767px) {
   .student-profile-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2618,88 +2263,84 @@
   .student-profile-grid div {
     min-width: 0;
     padding: 10px 8px;
-    border-radius: 16px;
+    border-radius: 14px;
   }
 
   .student-profile-grid span {
-    font-size: 9px;
+    font-size: 10.5px;
     line-height: 1.25;
     font-weight: 500;
-    letter-spacing: 0;
     text-transform: none;
-    margin-bottom: 4px;
-    white-space: normal;
-    overflow-wrap: anywhere;
+    letter-spacing: 0;
+    margin-bottom: 6px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 
   .student-profile-grid strong {
-    font-size: 12px;
-    line-height: 1.3;
+    font-size: 12.5px;
+    line-height: 1.28;
     font-weight: 500;
-    white-space: normal;
-    overflow-wrap: anywhere;
-  }
-
-  .student-profile-card {
-    padding: 12px;
+    word-break: break-word;
   }
 }
 
-@media (max-width: 380px) {
+@media (max-width: 360px) {
   .student-profile-grid {
     gap: 6px;
   }
 
   .student-profile-grid div {
-    padding: 9px 6px;
-    border-radius: 14px;
+    min-height: 68px;
+    padding: 8px 6px;
   }
 
   .student-profile-grid span {
-    font-size: 8.5px;
+    font-size: 10px;
   }
 
   .student-profile-grid strong {
-    font-size: 11.5px;
+    font-size: 12px;
   }
 }
 
-/* ── STUDENT DETAIL SUMMARY: COMPACT MOBILE ROW ───────────── */
+
+/* Student detail summary stats: 3 compact boxes on mobile */
 @media (max-width: 767px) {
   .student-summary-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 6px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
   }
 
   .student-summary-grid div {
     min-width: 0;
-    padding: 10px 6px;
+    padding: 10px 8px;
     border-radius: 14px;
   }
 
   .student-summary-grid strong {
     font-size: 20px;
-    line-height: 1;
-    font-weight: 500;
-    margin-bottom: 4px;
+    font-weight: 600;
+    margin-bottom: 6px;
   }
 
   .student-summary-grid span {
-    font-size: 10px;
-    line-height: 1.2;
-    font-weight: 400;
-    letter-spacing: 0;
+    font-size: 10.5px;
+    line-height: 1.25;
+    font-weight: 500;
   }
 }
 
-@media (max-width: 380px) {
+@media (max-width: 360px) {
   .student-summary-grid {
-    gap: 5px;
+    gap: 6px;
   }
 
   .student-summary-grid div {
-    padding: 9px 4px;
-    border-radius: 12px;
+    min-height: 66px;
+    padding: 8px 6px;
   }
 
   .student-summary-grid strong {
@@ -2707,26 +2348,269 @@
   }
 
   .student-summary-grid span {
-    font-size: 9.5px;
+    font-size: 10px;
   }
 }
 
-/* Student detail: flatten parent weekly AI summary block to reduce nested frames */
-.student-detail-page .ai-summary-card {
-  border: 0;
-  box-shadow: none;
-  background: transparent;
-  padding: 0;
-  border-radius: 0;
+
+/* ── STUDENT DETAIL: ADD NOTE FROM DETAIL PAGE ───────────── */
+.session-note-plain.is-empty {
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.session-note-plain.is-empty > span {
+  min-width: 0;
+}
+.session-note-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--violet-l);
+  color: var(--violet-d);
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.session-note-add-btn:hover {
+  background: var(--token-primary-disabled);
+  color: var(--violet-d);
+}
+.session-note-edit-page {
+  max-width: 760px;
+}
+.session-note-edit-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh);
+  padding: var(--space-5);
+}
+.session-note-edit-label {
+  display: block;
+  margin-bottom: var(--space-2);
+  color: var(--ink-3);
+  font-size: 14px;
+  line-height: 1.4;
+  font-weight: 500;
+}
+.session-note-edit-textarea {
+  display: block;
+  width: 100%;
+  min-height: 220px;
+  padding: var(--space-4);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r-md);
+  background: var(--bg);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+}
+.session-note-edit-textarea:focus {
+  border-color: var(--violet);
+  box-shadow: 0 0 0 3px var(--violet-l);
+  background: var(--surface);
+}
+.session-note-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+@media (max-width: 767px) {
+  .session-note-plain.is-empty {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .session-note-add-btn {
+    width: 100%;
+  }
+  .session-note-edit-card {
+    padding: var(--space-4);
+  }
+  .session-note-edit-actions {
+    flex-direction: column-reverse;
+  }
+  .session-note-edit-actions .btn {
+    width: 100%;
+  }
 }
 
-.student-detail-page .ai-summary-card .ai-summary-textarea {
-  background: var(--surface, #fff);
+
+/* ── STUDENT DETAIL: EMPTY NOTE STATE ─────────────────────
+   Khi buổi học chưa có nhận xét, hiển thị empty state rõ ràng
+   và button outline để giáo viên nhập nhanh từ trang chi tiết. */
+.session-note-plain {
+  box-sizing: border-box;
+  padding: var(--space-3);
+  background: var(--bg);
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-line;
+  display: block;
+}
+
+.session-note-plain.is-empty {
+  min-height: 0;
+  padding: var(--space-4);
+  display: block;
+}
+
+.session-note-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 112px;
+  text-align: center;
+}
+
+.session-note-empty-icon {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--violet-l);
+  color: var(--violet-d);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.session-note-empty-text {
+  max-width: 320px;
+  color: var(--ink-3);
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 500;
+}
+
+.session-note-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 18px;
+  border: 1px solid var(--violet);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--violet);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.session-note-add-btn:hover {
+  background: var(--violet-l);
+  color: var(--violet-d);
 }
 
 @media (max-width: 767px) {
-  .student-detail-page .ai-summary-card {
-    padding: 0;
-    border-radius: 0;
+  .session-note-plain {
+    padding: 10px var(--space-3);
+  }
+
+  .session-note-plain.is-empty {
+    padding: var(--space-4) var(--space-3);
+  }
+
+  .session-note-empty-state {
+    min-height: 108px;
+    gap: var(--space-2);
+  }
+
+  .session-note-empty-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+
+  .session-note-add-btn {
+    width: auto;
+    min-width: 148px;
+  }
+}
+
+/* ── STUDENT DETAIL: COLLAPSIBLE SESSION NOTES ───────────── */
+.session-note-head-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.session-note-status-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.session-note-toggle {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background .16s ease, color .16s ease, transform .16s ease;
+}
+
+.session-note-toggle:hover {
+  background: var(--violet-l);
+  color: var(--violet-d);
+}
+
+.session-note-toggle svg {
+  display: block;
+  transform: rotate(180deg);
+  transition: transform .16s ease;
+}
+
+.session-note-item.is-collapsed .session-note-toggle svg {
+  transform: rotate(0deg);
+}
+
+.session-note-item.is-collapsed .session-note-content {
+  display: none;
+}
+
+.session-note-item.no-note .session-note-head {
+  border-bottom: 0;
+}
+
+.session-note-content {
+  border-top: 0;
+}
+
+.session-note-plain {
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 767px) {
+  .session-note-head {
+    align-items: flex-start;
+  }
+  .session-note-status-wrap {
+    gap: var(--space-1);
+  }
+  .session-note-toggle {
+    width: 28px;
+    height: 28px;
   }
 }

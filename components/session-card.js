@@ -1,6 +1,6 @@
 /**
  * components/session-card.js
- * Collapsible card showing and editing one session's notes.
+ * Collapsible card showing and editing one plain session note.
  * dataset: data-session-id="i123"
  *
  * Used by: pages/notes.html
@@ -17,7 +17,8 @@ function _render(el, sessionId) {
   if (!sess) { el.innerHTML = ''; return; }
 
   const st      = Store.get('students').find(s => s.id === sess.studentId);
-  const hasNote = Boolean(sess.noteSkill || sess.noteBehavior || sess.noteProgress || sess.noteParent);
+  const noteText = getPlainNote(sess);
+  const hasNote = Boolean(noteText);
   const canEdit = sess.status === 'taught' || sess.status === 'makeup';
   const dotColor = {
     taught: 'var(--green)', absent: 'var(--red)',
@@ -33,7 +34,7 @@ function _render(el, sessionId) {
             ${st ? st.name : '—'}
           </div>
           <div class="sc-date">
-            ${fmtDate(sess.date)} · ${sess.startTime}
+            ${fmtDate(sess.date)} · ${sess.startTime || '--:--'}
           </div>
         </div>
         <div class="sc-right">
@@ -48,19 +49,15 @@ function _render(el, sessionId) {
         ${canEdit ? `
           <div class="session-note-view ${hasNote ? '' : 'empty'}">
             ${hasNote ? `
-              ${noteBlock('🎯', 'Kỹ năng tập trung', sess.noteSkill,    'var(--violet)', 'var(--violet-l)')}
-              ${noteBlock('⚡', 'Hành vi nổi bật',    sess.noteBehavior,'var(--amber)',  'var(--amber-l)')}
-              ${noteBlock('🌱', 'Tiến bộ ghi nhận',   sess.noteProgress,'var(--green)',  'var(--green-l)')}
-              ${noteBlock('💌', 'Ghi phụ huynh',      sess.noteParent,  'var(--blue)',   'var(--blue-l)')}
+              <div class="note-block note-block-plain">
+                <div class="note-block-text">${escapeHtml(noteText)}</div>
+              </div>
             ` : '<p class="text-muted fs-13">Chưa có nhận xét cho buổi học này</p>'}
           </div>
 
           <div class="session-note-form" ${hasNote ? 'hidden' : ''}>
-            <div class="note-grid">
-              ${noteField('noteSkill', '🎯', 'Kỹ năng tập trung hôm nay', sess.noteSkill)}
-              ${noteField('noteBehavior', '⚡', 'Hành vi nổi bật', sess.noteBehavior)}
-              ${noteField('noteProgress', '🌱', 'Tiến bộ ghi nhận', sess.noteProgress)}
-              ${noteField('noteParent', '💌', 'Ghi chú cho phụ huynh', sess.noteParent)}
+            <div class="note-grid note-grid-plain">
+              ${noteField('noteText', 'Nhận xét buổi học', noteText)}
             </div>
           </div>
 
@@ -96,12 +93,14 @@ function _render(el, sessionId) {
 
   el.querySelector('[data-action="save-notes"]')?.addEventListener('click', (event) => {
     event.stopPropagation();
+    const newNote = valueOf(el, 'noteText');
     Store.upsertSession({
       ...sess,
-      noteSkill: valueOf(el, 'noteSkill'),
-      noteBehavior: valueOf(el, 'noteBehavior'),
-      noteProgress: valueOf(el, 'noteProgress'),
-      noteParent: valueOf(el, 'noteParent'),
+      noteText: newNote,
+      noteSkill: '',
+      noteBehavior: '',
+      noteProgress: '',
+      noteParent: '',
     });
   });
 }
@@ -110,26 +109,21 @@ function valueOf(root, name) {
   return root.querySelector(`[name="${name}"]`)?.value.trim() || '';
 }
 
-function noteField(name, emoji, label, value = '') {
+function noteField(name, label, value = '') {
   return `
     <label>
-      <div class="note-field-label">
-        <span class="note-emoji emoji" aria-hidden="true">${emoji}</span>${label}
-      </div>
-      <textarea class="note-ta" name="${name}" rows="3" placeholder="Nhập nhận xét...">${escapeHtml(value || '')}</textarea>
+      <div class="note-field-label">${label}</div>
+      <textarea class="note-ta" name="${name}" rows="4" placeholder="Nhập nhận xét chung cho buổi học...">${escapeHtml(value || '')}</textarea>
     </label>`;
 }
 
-function noteBlock(emoji, label, text, color, bg) {
-  if (!text) return '';
-  return `
-    <div class="note-block">
-      <div class="note-block-label" style="color:${color}">
-        <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${color};margin-right:5px;flex-shrink:0"></span>
-        <span class="note-emoji emoji" aria-hidden="true">${emoji}</span>${label}
-      </div>
-      <div class="note-block-text">${escapeHtml(text)}</div>
-    </div>`;
+function getPlainNote(sess) {
+  const direct = String(sess.noteText || sess.note || sess.noteContent || '').trim();
+  if (direct) return direct;
+  return [sess.noteSkill, sess.noteBehavior, sess.noteProgress, sess.noteParent]
+    .map(v => String(v || '').trim())
+    .filter(Boolean)
+    .join('\n');
 }
 
 function escapeHtml(str) {

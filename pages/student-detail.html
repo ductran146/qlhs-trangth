@@ -43,6 +43,18 @@ let studentId = params.get('id');
 let weekOffset = 0;
 let monthOffset = 0;
 
+function fmtDatePlain(value) {
+  if (!value) return '';
+  const parts = String(value).split('-');
+  if (parts.length === 3) {
+    const [year, month, day] = parts;
+    return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+  }
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+}
+
 function render() {
   const students = Store.get('students');
   const st = students.find(s => s.id === studentId) || students[0];
@@ -53,7 +65,7 @@ function render() {
           <div class="page-title">Chi tiết học sinh</div>
           <div class="page-sub">Chưa có học sinh nào</div>
         </div>
-        <a class="btn btn-outline btn-sm" href="students.html">← Quay lại</a>
+        <a class="btn btn-outline " href="students.html">← Quay lại</a>
       </div>`;
     return;
   }
@@ -77,7 +89,7 @@ function render() {
         <div class="page-title">Chi tiết học sinh</div>
         <div class="page-sub">Nhận xét từng ca học, AI gợi ý nhận xét tuần/tháng và xuất Word gửi phụ huynh</div>
       </div>
-      <button class="btn btn-outline btn-sm" id="btnEditStudent">Sửa thông tin</button>
+      <button class="btn btn-outline" id="btnEditStudent">Sửa thông tin</button>
     </div>
 
     <section class="student-profile-card">
@@ -94,8 +106,8 @@ function render() {
         </div>
       </div>
       <div class="student-profile-grid">
-        <div><span>Ngày bắt đầu học</span><strong>${st.startDate ? fmtDate(st.startDate) : 'Chưa nhập'}</strong></div>
-        <div><span>Đã học đến hiện tại</span><strong>${formatNumber(learnedToDate)} ca</strong></div>
+        <div><span>Ngày bắt đầu học</span><strong>${st.startDate ? fmtDatePlain(st.startDate) : 'Chưa nhập'}</strong></div>
+        <div><span>Đã học</span><strong>${formatNumber(learnedToDate)} ca</strong></div>
         <div><span>Giờ học</span><strong>${escapeHTML(st.schedTime || '--:--')}</strong></div>
         <div><span>Lịch tuần</span><strong>${formatDays(st)}</strong></div>
         <div><span>Độ dài</span><strong>${st.duration || 1} ca</strong></div>
@@ -114,7 +126,7 @@ function render() {
         <div class="detail-actions">
           <button class="icon-btn" data-action="prev-week" aria-label="Tuần trước">‹</button>
           <button class="icon-btn" data-action="next-week" aria-label="Tuần sau">›</button>
-          <button class="btn btn-primary btn-sm" data-action="export-week"><span class="emoji" aria-hidden="true">📄</span> Xuất tuần</button>
+          <button class="btn btn-primary" data-action="export-week"><span class="emoji" aria-hidden="true">📄</span> Xuất tuần</button>
         </div>
       </div>
       ${summaryTemplate({ st, sessions: weekSessions, report: weekReport, mode: 'week', label: `Tuần ${week.label}` })}
@@ -130,7 +142,7 @@ function render() {
         <div class="detail-actions">
           <button class="icon-btn" data-action="prev-month" aria-label="Tháng trước">‹</button>
           <button class="icon-btn" data-action="next-month" aria-label="Tháng sau">›</button>
-          <button class="btn btn-primary btn-sm" data-action="export-month"><span class="emoji" aria-hidden="true">📄</span> Xuất tháng</button>
+          <button class="btn btn-primary" data-action="export-month"><span class="emoji" aria-hidden="true">📄</span> Xuất tháng</button>
         </div>
       </div>
       ${summaryTemplate({ st, sessions: monthSessions, report: monthReport, mode: 'month', label: month.label, weekReports: weekReportsInMonth })}
@@ -174,6 +186,7 @@ function bindEvents(ctx) {
     const content = valueOfReport('month') || generateMonthSummary(st, monthSessions, weekReportsInMonth, month.label);
     exportWordReport(st, monthSessions, month.label, 'thang', content, weekReportsInMonth);
   });
+  bindSessionNoteToggles();
 }
 
 function summaryTemplate({ st, sessions, report, mode, label, weekReports = [] }) {
@@ -183,15 +196,16 @@ function summaryTemplate({ st, sessions, report, mode, label, weekReports = [] }
   const slots = taught.reduce((a, s) => a + actualSlots(s), 0);
   const absentSlots = absent.reduce((a, s) => a + plannedSlots(s), 0);
   const busySlots = busy.reduce((a, s) => a + plannedSlots(s), 0);
+  const noStudySlots = absentSlots + busySlots;
+  const makeupNeededSlots = remainingMakeupSlots(st.id, sessions);
   const hasSource = mode === 'week' ? hasSessionNotes(sessions) : (weekReports.length || hasSessionNotes(sessions));
   const draft = report?.content || '';
 
   return `
     <div class="student-summary-grid">
       <div><strong>${formatNumber(slots)}</strong><span>Ca đã học</span></div>
-      <div><strong>${formatNumber(absentSlots)}</strong><span>Ca bé nghỉ</span></div>
-      <div><strong>${formatNumber(busySlots)}</strong><span>Ca cô bận</span></div>
-      <div><strong>${formatNumber(absentSlots + busySlots)}</strong><span>Ca cần bù</span></div>
+      <div><strong>${formatNumber(noStudySlots)}</strong><span>Không học</span></div>
+      <div><strong>${formatNumber(makeupNeededSlots)}</strong><span>Ca cần bù</span></div>
     </div>
 
     <div class="ai-summary-card">
@@ -202,12 +216,12 @@ function summaryTemplate({ st, sessions, report, mode, label, weekReports = [] }
             ? 'AI tạo bản nháp từ nhận xét từng ca học. Cô giáo nên kiểm tra và chỉnh sửa trước khi lưu/xuất.'
             : 'AI tạo bản nháp từ nhận xét tuần đã lưu. Nếu chưa có nhận xét tuần, hệ thống sẽ dùng nhận xét từng ca học trong tháng.'}</p>
         </div>
-        <button class="btn btn-outline btn-sm" data-action="ai-${mode}" ${hasSource ? '' : 'disabled'}><span class="emoji" aria-hidden="true">🤖</span> AI tạo nhận xét</button>
+        <button class="btn btn-outline" data-action="ai-${mode}" ${hasSource ? '' : 'disabled'}><span class="emoji" aria-hidden="true">🤖</span> AI tạo nhận xét</button>
       </div>
       <textarea class="ai-summary-textarea" data-report-content="${mode}" rows="7" placeholder="${hasSource ? 'Bấm AI tạo nhận xét hoặc tự nhập nội dung tổng hợp...' : 'Chưa có dữ liệu nhận xét để tổng hợp.'}">${escapeHTML(draft)}</textarea>
       <div class="ai-summary-actions">
         <span>${report ? `Đã lưu · ${escapeHTML(label)}` : 'Chưa lưu bản tổng hợp'}</span>
-        <button class="btn btn-primary btn-sm" data-action="save-${mode}-report">Lưu nhận xét ${mode === 'week' ? 'tuần' : 'tháng'}</button>
+        <button class="btn btn-primary" data-action="save-${mode}-report">Lưu nhận xét ${mode === 'week' ? 'tuần' : 'tháng'}</button>
       </div>
     </div>`;
 }
@@ -218,22 +232,47 @@ function sessionListTemplate(sessions) {
   }
   return `
     <div class="session-note-list">
-      ${sessions.map(s => `
-        <article class="session-note-item">
-          <div class="session-note-head">
-            <div>
-              <strong>${fmtDate(s.date)}</strong>
-              <span>${escapeHTML(s.startTime || '--:--')} · ${s.duration || 1} ca · ${statusLabel(s.status) || 'Chưa chấm'}</span>
+      ${sessions.map(s => {
+        const note = sessionNoteText(s);
+        const status = s.status || 'pending';
+        const statusText = statusLabel(status) || 'Chưa chấm';
+        const hideNote = shouldHideSessionNote(status);
+        const noteHref = `session-note.html?studentId=${encodeURIComponent(s.studentId || studentId)}&sessionId=${encodeURIComponent(s.id)}`;
+        const noteBody = hideNote ? '' : (note ? `
+          <div class="session-note-content">
+            <div class="session-note-plain">
+              <span>${escapeHTML(note)}</span>
             </div>
-            <span class="status-pill status-${s.status || 'pending'}">${statusLabel(s.status) || 'Chưa chấm'}</span>
+          </div>` : `
+          <div class="session-note-content">
+            <div class="session-note-plain is-empty">
+              <div class="session-note-empty-state">
+                <div class="session-note-empty-icon"><span class="emoji" aria-hidden="true">💬</span></div>
+                <div class="session-note-empty-text">Chưa có nhận xét cho buổi học này.</div>
+                <a class="session-note-add-btn" href="${noteHref}">Thêm nhận xét</a>
+              </div>
+            </div>
+          </div>`);
+        return `
+        <article class="session-note-item${hideNote ? ' no-note' : ' is-open'}" data-session-note-item="${escapeHTML(s.id || '')}">
+          <div class="session-note-head">
+            <div class="session-note-head-main">
+              <strong>${fmtDate(s.date)}</strong>
+              <span>${escapeHTML(s.startTime || '--:--')} · ${s.duration || 1} ca · ${statusText}</span>
+            </div>
+            <div class="session-note-status-wrap">
+              <span class="status-pill status-${status}">${statusText}</span>
+              ${hideNote ? '' : `
+              <button class="session-note-toggle" type="button" data-session-toggle aria-label="Mở rộng hoặc thu gọn nhận xét" aria-expanded="true">
+                <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>`}
+            </div>
           </div>
-          <div class="session-note-grid">
-            ${noteLine('🎯', 'Kỹ năng', s.noteSkill)}
-            ${noteLine('⚡', 'Hành vi', s.noteBehavior)}
-            ${noteLine('🌱', 'Tiến bộ', s.noteProgress)}
-            ${noteLine('💌', 'Gửi phụ huynh', s.noteParent)}
-          </div>
-        </article>`).join('')}
+          ${noteBody}
+        </article>`;
+      }).join('')}
     </div>`;
 }
 
@@ -252,12 +291,13 @@ function weekReportListTemplate(reports) {
     </div>`;
 }
 
-function noteLine(icon, label, value) {
-  return `
-    <div class="session-note-line">
-      <span class="emoji" aria-hidden="true">${icon}</span>
-      <div><small>${label}</small><p>${escapeHTML(value || 'Chưa nhập')}</p></div>
-    </div>`;
+function sessionNoteText(session) {
+  const direct = String(session.noteText || session.note || session.noteContent || '').trim();
+  if (direct) return direct;
+  return [session.noteSkill, session.noteBehavior, session.noteProgress, session.noteParent]
+    .map(v => String(v || '').trim())
+    .filter(Boolean)
+    .join('\n');
 }
 
 function saveReport(st, type, start, end, label, content) {
@@ -276,19 +316,32 @@ function valueOfReport(mode) {
   return page.querySelector(`[data-report-content="${mode}"]`)?.value.trim() || '';
 }
 
+function shouldHideSessionNote(status) {
+  return status === 'absent' || status === 'busy';
+}
+
+function bindSessionNoteToggles() {
+  page.querySelectorAll('[data-session-toggle]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const item = btn.closest('.session-note-item');
+      if (!item) return;
+      item.classList.toggle('is-collapsed');
+      const expanded = !item.classList.contains('is-collapsed');
+      btn.setAttribute('aria-expanded', String(expanded));
+    });
+  });
+}
+
 function generateWeekSummary(st, sessions, label) {
   const taught = sessions.filter(s => s.status === 'taught' || s.status === 'makeup');
   const notes = collectNotes(sessions);
-  if (!hasSessionNotes(sessions)) return '';
+  if (!notes.length) return '';
 
   const parts = [];
   parts.push(`Trong ${label.toLowerCase()}, ${st.name} đã học tổng ${formatNumber(taught.reduce((a, s) => a + actualSlots(s), 0))} ca.`);
-  if (notes.skill.length) parts.push(`Về kỹ năng tập trung, bé được ghi nhận: ${joinNotes(notes.skill)}.`);
-  if (notes.progress.length) parts.push(`Điểm tiến bộ nổi bật trong tuần là: ${joinNotes(notes.progress)}.`);
-  if (notes.behavior.length) parts.push(`Về hành vi trong ca học, cô ghi nhận: ${joinNotes(notes.behavior)}.`);
-  if (notes.parent.length) parts.push(`Phần trao đổi với phụ huynh: ${joinNotes(notes.parent)}.`);
-  parts.push(`Tuần tới, cô sẽ tiếp tục củng cố các kỹ năng đã tiến bộ, đồng thời hỗ trợ bé duy trì sự tập trung, hợp tác và diễn đạt nhu cầu phù hợp hơn trong từng hoạt động.`);
-  return parts.join('\n\n');
+  parts.push(`Các ghi nhận trong tuần: ${joinNotes(notes)}.`);
+  parts.push(`Tuần tới, cô sẽ tiếp tục theo dõi khả năng hợp tác, tập trung và tiến bộ của bé trong từng hoạt động để điều chỉnh mục tiêu can thiệp phù hợp hơn.`);
+  return parts.join('\n');
 }
 
 function generateMonthSummary(st, sessions, weekReports, label) {
@@ -300,32 +353,20 @@ function generateMonthSummary(st, sessions, weekReports, label) {
 
   if (sourceTexts.length) {
     parts.push(`Dựa trên các nhận xét theo tuần, bé có sự thay đổi đáng chú ý qua từng giai đoạn: ${joinNotes(sourceTexts)}.`);
-  } else {
-    if (notes.skill.length) parts.push(`Về kỹ năng tập trung, các ghi nhận trong tháng gồm: ${joinNotes(notes.skill)}.`);
-    if (notes.progress.length) parts.push(`Các tiến bộ nổi bật trong tháng gồm: ${joinNotes(notes.progress)}.`);
-    if (notes.behavior.length) parts.push(`Về hành vi, cô ghi nhận: ${joinNotes(notes.behavior)}.`);
+  } else if (notes.length) {
+    parts.push(`Các ghi nhận trong tháng gồm: ${joinNotes(notes)}.`);
   }
 
-  if (notes.parent.length) parts.push(`Một số nội dung cần phối hợp thêm với phụ huynh: ${joinNotes(notes.parent)}.`);
   parts.push(`Trong tháng tới, cô sẽ tiếp tục duy trì các điểm mạnh đã hình thành, tăng dần yêu cầu theo khả năng của bé và phối hợp với gia đình để hỗ trợ bé ổn định hơn trong học tập, giao tiếp và sinh hoạt.`);
-  return parts.join('\n\n');
+  return parts.join('\n');
 }
 
 function collectNotes(sessions) {
-  return {
-    skill: uniqueNotes(sessions, 'noteSkill'),
-    behavior: uniqueNotes(sessions, 'noteBehavior'),
-    progress: uniqueNotes(sessions, 'noteProgress'),
-    parent: uniqueNotes(sessions, 'noteParent'),
-  };
+  return [...new Set(sessions.map(sessionNoteText).map(t => t.trim()).filter(Boolean))];
 }
 
 function hasSessionNotes(sessions) {
-  return sessions.some(s => s.noteSkill || s.noteBehavior || s.noteProgress || s.noteParent);
-}
-
-function uniqueNotes(sessions, key) {
-  return [...new Set(sessions.map(s => String(s[key] || '').trim()).filter(Boolean))];
+  return sessions.some(s => sessionNoteText(s));
 }
 
 function joinNotes(items) {
@@ -362,7 +403,7 @@ function exportWordReport(st, sessions, label, scope, summaryContent = '', weekR
         Tên bố: ${escapeHTML(st.fatherName || 'Chưa nhập')}<br>
         Tên mẹ: ${escapeHTML(st.motherName || 'Chưa nhập')}<br>
         Ngày bắt đầu học: ${st.startDate ? fmtDate(st.startDate) : 'Chưa nhập'}<br>
-        Đã học đến hiện tại: ${formatNumber(learnedSlotsToDate(sessions, st))} ca<br>
+        Đã học: ${formatNumber(learnedSlotsToDate(sessions, st))} ca<br>
         Mục tiêu: ${escapeHTML(st.goal || 'Chưa nhập')}<br>
         Lịch học: ${formatDays(st)} · ${escapeHTML(st.schedTime || '--:--')} · ${st.duration || 1} ca
       </div>
@@ -376,10 +417,10 @@ function exportWordReport(st, sessions, label, scope, summaryContent = '', weekR
       ${weekReports.length ? `<h2>Nhận xét tuần đã lưu</h2>${weekReports.map(r => `<div class="box"><strong>${escapeHTML(r.label || '')}</strong><p class="small">${escapeHTML(r.content || '')}</p></div>`).join('')}` : ''}
       <h2>Chi tiết ca học</h2>
       <table>
-        <thead><tr><th>Ngày</th><th>Ca</th><th>Trạng thái</th><th>Kỹ năng</th><th>Hành vi</th><th>Tiến bộ</th><th>Gửi phụ huynh</th></tr></thead>
+        <thead><tr><th>Ngày</th><th>Ca</th><th>Trạng thái</th><th>Nhận xét</th></tr></thead>
         <tbody>${sessions.map(s => `<tr>
           <td>${fmtDate(s.date)}</td><td>${escapeHTML(s.startTime || '--:--')} · ${s.duration || 1} ca</td><td>${statusLabel(s.status) || 'Chưa chấm'}</td>
-          <td>${escapeHTML(s.noteSkill || '')}</td><td>${escapeHTML(s.noteBehavior || '')}</td><td>${escapeHTML(s.noteProgress || '')}</td><td>${escapeHTML(s.noteParent || '')}</td>
+          <td>${escapeHTML(sessionNoteText(s) || '')}</td>
         </tr>`).join('')}</tbody>
       </table>
     </body></html>`;
@@ -401,6 +442,13 @@ function actualSlots(session) {
 
 function plannedSlots(session) {
   return Number(session?.plannedSlots ?? session?.debtSlots ?? session?.duration ?? 0);
+}
+
+function remainingMakeupSlots(studentId, sessions) {
+  const sessionIds = new Set((sessions || []).map(s => s.id));
+  return (Store.get('debts') || [])
+    .filter(d => d.studentId === studentId && !d.done && (!d.sessionId || sessionIds.has(d.sessionId)))
+    .reduce((total, d) => total + Number(d.slots || 0), 0);
 }
 
 function learnedSlotsToDate(sessions, st) {
@@ -438,8 +486,42 @@ function toDateStr(date) {
 }
 
 function formatDays(st) {
-  const days = (st.schedDays || []).sort((a, b) => a - b).map(d => DAYS_SHORT[d]).join(', ');
-  return days || 'Chưa có lịch';
+  const rawDays = Array.from(new Set((st.schedDays || []).map(Number)))
+    .filter(day => Number.isInteger(day) && day >= 0 && day <= 6);
+
+  if (!rawDays.length) return 'Chưa có lịch';
+
+  // Hiển thị lịch tuần theo thứ tự T2 → CN.
+  // Nếu có từ 4 ngày học liên tiếp, rút gọn thành: ngày đầu → ngày cuối.
+  const weekOrder = [1, 2, 3, 4, 5, 6, 0];
+  const orderedDays = weekOrder.filter(day => rawDays.includes(day));
+  const ranges = [];
+  let current = [];
+
+  orderedDays.forEach(day => {
+    const prev = current[current.length - 1];
+    const isNextDay = current.length
+      ? weekOrder.indexOf(day) === weekOrder.indexOf(prev) + 1
+      : true;
+
+    if (!current.length || isNextDay) {
+      current.push(day);
+    } else {
+      ranges.push(current);
+      current = [day];
+    }
+  });
+
+  if (current.length) ranges.push(current);
+
+  return ranges
+    .map(range => {
+      if (range.length >= 4) {
+        return `${DAYS_SHORT[range[0]]} → ${DAYS_SHORT[range[range.length - 1]]}`;
+      }
+      return range.map(day => DAYS_SHORT[day]).join(', ');
+    })
+    .join(', ');
 }
 
 function formatNumber(value) {
