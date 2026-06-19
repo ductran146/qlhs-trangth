@@ -375,17 +375,17 @@ body.modal-open { overflow: hidden; }
 /* ── DAY / DIFFICULTY PICKERS ────────────── */
 .day-picker { display: flex; gap: 6px; flex-wrap: wrap; }
 .day-chip {
-  width: 38px; height: 38px; border-radius: 50%;
+  width: 40px; height: 40px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 12px; font-weight: 700;
-  border: 1.5px solid var(--border-2); background: var(--bg); color: var(--ink-3);
+  font-size: 14px; font-weight: 500;
+  border: 1px solid var(--border-2); background: var(--bg); color: var(--ink-3);
   cursor: pointer; transition: all .15s;
 }
 .day-chip.selected { border-color: var(--violet); background: var(--violet-l); color: var(--violet-d); }
 .diff-picker { display: flex; gap: 6px; flex-wrap: wrap; }
 .diff-chip {
-  padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
-  border: 1.5px solid var(--border-2); background: var(--bg); color: var(--ink-3);
+  padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 400;
+  border: 1px solid var(--border-2); background: var(--bg); color: var(--ink-3);
   cursor: pointer; transition: all .15s;
 }
 .diff-chip.selected { border-color: var(--violet); background: var(--violet-l); color: var(--violet-d); }
@@ -578,7 +578,7 @@ body {
 .month-student-meta,
 .week-attendance-head p,
 .topbar-date {
-  font-weight: 400;
+  font-weight: 500;
   color: var(--token-text-placeholder);
 }
 .btn,
@@ -695,10 +695,10 @@ textarea,
 @media (max-width: 480px) {
   .form-input[type="date"] {
     font-size: 15px;
-    height: 46px;
-    min-height: 46px;
-    max-height: 46px;
-    line-height: 46px;
+    height: 44px;
+    min-height: 44px;
+    max-height: 44px;
+    line-height: 44px;
     padding-left: 10px;
     padding-right: 10px;
   }
@@ -770,8 +770,8 @@ textarea,
     width: 100%;
     min-width: 0;
     max-width: 100%;
-    height: 46px;
-    min-height: 46px;
+    height: 44px;
+    min-height: 44px;
     padding-left: 10px;
     padding-right: 10px;
     overflow: hidden;
@@ -832,7 +832,7 @@ textarea,
   .student-modal .sm-start-status-row.is-edit-mode {
     display: grid !important;
     grid-template-columns: minmax(0, 1fr) !important;
-    gap: 12px !important;
+    gap: 0px !important;
     width: 100% !important;
   }
 
@@ -934,7 +934,7 @@ textarea,
   }
   .student-modal .modal-header {
     min-height: 48px;
-    margin-bottom: 18px;
+    margin-bottom: 16px;
     padding-left: 56px;
     padding-right: 56px;
   }
@@ -1493,7 +1493,7 @@ textarea.form-input:disabled,
 
 textarea.form-input,
 .student-modal textarea.form-input {
-  min-height: 104px !important;
+  min-height: 72px !important;
   resize: vertical;
 }
 
@@ -1550,102 +1550,202 @@ textarea.form-input,
   background: var(--token-state-hover, var(--bg)) !important;
 }
 
-/* ── MOBILE SAFARI NO-ZOOM FIX ─────────────────
-   iOS Safari tự zoom khi field nhập liệu nhỏ hơn 16px.
-   Chỉ tăng font-size trên mobile, desktop/tablet vẫn giữ 14px theo design system. */
+/* ── MOBILE SEARCH ICON 20PX UPDATE ─────────────────────────
+   Search icon is applied as field background only; no separate .student-search-icon element. */
+.student-search-icon {
+  display: none !important;
+}
+.student-search,
+.search-input,
+.filter-input,
+input[type="search"],
+.form-input[type="search"],
+input[type="search"].form-input {
+  padding-left: 42px !important;
+  background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M17 17L21 21' stroke='%23141B34' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M19 11C19 6.58172 15.4183 3 11 3C6.58172 3 3 6.58172 3 11C3 15.4183 6.58172 19 11 19C15.4183 19 19 15.4183 19 11Z' stroke='%23141B34' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: left 14px center !important;
+  background-size: 20px 20px !important;
+}
+.student-search::-webkit-search-decoration,
+.search-input::-webkit-search-decoration,
+.filter-input::-webkit-search-decoration,
+input[type="search"]::-webkit-search-decoration {
+  display: none !important;
+}
+
 @media (max-width: 767px) {
-  input,
-  textarea,
-  select,
-  button,
-  .form-input,
-  .form-select,
-  .student-modal input,
-  .student-modal select,
-  .student-modal textarea,
-  .note-ta,
-  .ai-summary-textarea,
   .student-search,
   .search-input,
-  .filter-input {
-    font-size: 16px !important;
-  }
-
-  input::placeholder,
-  textarea::placeholder,
-  .form-input::placeholder,
-  .student-modal input::placeholder,
-  .student-modal textarea::placeholder {
-    font-size: 16px !important;
+  .filter-input,
+  input[type="search"],
+  .form-input[type="search"],
+  input[type="search"].form-input {
+    padding-left: 42px !important;
+    background-size: 20px 20px !important;
   }
 }
 
-/* ── iOS SAFARI STRICT NO-ZOOM PATCH ─────────────────────────
-   iPhone Safari vẫn zoom nếu computed font-size của control < 16px.
-   Patch này đặt ở cuối file để thắng các rule design-system/mobile trước đó.
-   Chỉ áp dụng điện thoại, không đổi desktop/tablet. */
-@supports (-webkit-touch-callout: none) {
-  @media screen and (max-width: 767px) {
-    html {
-      -webkit-text-size-adjust: 100%;
-    }
+/* ── MOBILE FIELD-ONLY NO-ZOOM FIX ─────────────────────────
+   Chỉ tăng font-size cho trường nhập dữ liệu thật trên điện thoại.
+   Không áp dụng cho button, text hiển thị, status button/chip, week attendance controls. */
+@media (max-width: 767px) {
+  input.form-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  textarea.form-input,
+  textarea.note-ta,
+  textarea.ai-summary-textarea,
+  select.form-input,
+  .form-select,
+  .student-modal input.form-input,
+  .student-modal textarea.form-input,
+  .student-modal select.form-input,
+  .modal input.form-input,
+  .modal textarea.form-input,
+  .modal select.form-input,
+  input[type="text"].form-input,
+  input[type="number"].form-input,
+  input[type="email"].form-input,
+  input[type="password"].form-input,
+  input[type="search"],
+  input[type="date"].form-input,
+  input[type="time"].form-input,
+  .student-search,
+  .search-input,
+  .filter-input,
+  .attendance-debt-select {
+    font-size: 16px !important;
+    -webkit-text-size-adjust: 100% !important;
+  }
 
-    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
-    textarea,
-    select,
-    [contenteditable="true"],
-    .form-input,
-    .form-select,
-    .note-ta,
-    .ai-summary-textarea,
-    .student-search,
-    .search-input,
-    .filter-input,
-    .attendance-debt-select,
-    .week-status-select,
-    .week-calendar-select,
-    .student-modal input,
-    .student-modal textarea,
-    .student-modal select,
-    .modal input,
-    .modal textarea,
-    .modal select,
-    .attendance-modal input,
-    .attendance-modal textarea,
-    .attendance-modal select,
-    .pending-dialog input,
-    .pending-dialog textarea,
-    .pending-dialog select {
-      font-size: 16px !important;
-      line-height: 1.35 !important;
-      -webkit-text-size-adjust: 100% !important;
-    }
+  input.form-input::placeholder,
+  textarea.form-input::placeholder,
+  .note-ta::placeholder,
+  .ai-summary-textarea::placeholder,
+  input[type="search"]::placeholder,
+  .student-search::placeholder,
+  .search-input::placeholder,
+  .filter-input::placeholder {
+    font-size: 16px !important;
+  }
 
-    input::placeholder,
-    textarea::placeholder,
-    .form-input::placeholder,
-    .note-ta::placeholder,
-    .ai-summary-textarea::placeholder,
-    .student-search::placeholder,
-    .search-input::placeholder,
-    .filter-input::placeholder {
-      font-size: 16px !important;
-      line-height: 1.35 !important;
-    }
+  input[type="date"].form-input::-webkit-date-and-time-value,
+  input[type="time"].form-input::-webkit-date-and-time-value,
+  input[type="datetime-local"].form-input::-webkit-date-and-time-value,
+  input.form-input::-webkit-datetime-edit,
+  input.form-input::-webkit-datetime-edit-fields-wrapper,
+  input.form-input::-webkit-datetime-edit-text,
+  input.form-input::-webkit-datetime-edit-hour-field,
+  input.form-input::-webkit-datetime-edit-minute-field,
+  input.form-input::-webkit-datetime-edit-day-field,
+  input.form-input::-webkit-datetime-edit-month-field,
+  input.form-input::-webkit-datetime-edit-year-field {
+    font-size: 16px !important;
+  }
 
-    input[type="date"]::-webkit-date-and-time-value,
-    input[type="time"]::-webkit-date-and-time-value,
-    input[type="datetime-local"]::-webkit-date-and-time-value,
-    input::-webkit-datetime-edit,
-    input::-webkit-datetime-edit-fields-wrapper,
-    input::-webkit-datetime-edit-text,
-    input::-webkit-datetime-edit-hour-field,
-    input::-webkit-datetime-edit-minute-field,
-    input::-webkit-datetime-edit-day-field,
-    input::-webkit-datetime-edit-month-field,
-    input::-webkit-datetime-edit-year-field {
-      font-size: 16px !important;
-      line-height: 1.35 !important;
-    }
+  /* Khôi phục text size cho các control không phải field nhập liệu */
+  button,
+  .btn,
+  .btn-primary,
+  .btn-outline,
+  .btn-ghost,
+  .btn-sm,
+  .topbar-logout-btn,
+  .session-note-btn,
+  .status-btn,
+  .week-status-select,
+  .week-calendar-select,
+  .attendance-status-choice,
+  .attendance-modal-actions .btn {
+    -webkit-text-size-adjust: 100% !important;
+  }
+
+  .btn,
+  .btn-primary,
+  .btn-outline,
+  .btn-ghost,
+  .attendance-modal-actions .btn { font-size: 13px !important; }
+  .btn-sm,
+  .topbar-logout-btn { font-size: 12px !important; }
+  .session-note-btn { font-size: 13px !important; }
+  .status-btn { font-size: 11px !important; }
+  .week-status-select { font-size: 12px !important; line-height: 1.2 !important; }
+}
+
+
+/* ═══════════════════════════════════════════
+   MOBILE BOTTOM SHEET: 64PX TOP GAP + STICKY HEADER
+   Scope: mobile only. Desktop/tablet keep existing dialog behavior.
+   ═══════════════════════════════════════════ */
+@media (max-width: 767px) {
+  .overlay {
+    align-items: flex-end !important;
+    justify-content: center !important;
+    padding-top: 64px !important;
+  }
+
+  .modal,
+  .student-modal {
+    position: relative !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: calc(100dvh - 64px) !important;
+    max-height: calc(100svh - 64px) !important;
+    border-radius: 24px 24px 0 0 !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding-top: 0 !important;
+  }
+
+  .modal-header,
+  .student-modal .modal-header {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 20 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    min-height: 88px !important;
+    margin: 0 !important;
+    padding: 24px 64px 16px 0 !important;
+    background: var(--surface, #FFFFFF) !important;
+  }
+
+  .modal-title,
+  .student-modal .modal-title {
+    margin: 0 !important;
+    padding: 0 !important;
+    text-align: left !important;
+  }
+
+  .modal-close,
+  .student-modal .modal-close {
+    position: absolute !important;
+    top: 50% !important;
+    right: 0 !important;
+    transform: translateY(-50%) !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .attendance-modal,
+  .pending-attendance-modal,
+  .pending-dialog {
+    max-height: calc(100dvh - 64px) !important;
+    max-height: calc(100svh - 64px) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .attendance-modal-head,
+  .pending-dialog-head,
+  .pending-attendance-head {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 20 !important;
+    background: var(--surface, #FFFFFF) !important;
+    margin-top: 0 !important;
   }
 }
