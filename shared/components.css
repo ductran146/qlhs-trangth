@@ -3031,3 +3031,32 @@ input[type="search"]:focus {
 .pending-dialog-close:hover {
   background: var(--token-state-hover, var(--bg)) !important;
 }
+
+/* ── MOBILE SAFARI NO-ZOOM FIX ─────────────────
+   Đảm bảo mọi input/select/textarea trong component không bị iPhone Safari phóng to khi focus. */
+@media (max-width: 767px) {
+  .form-input,
+  .form-select,
+  .note-ta,
+  .ai-summary-textarea,
+  .attendance-debt-select,
+  .week-status-select,
+  .week-calendar-select,
+  .student-search,
+  .search-input,
+  .filter-input,
+  .student-modal input,
+  .student-modal select,
+  .student-modal textarea,
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="date"],
+  input[type="time"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}

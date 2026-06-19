@@ -1549,3 +1549,33 @@ textarea.form-input,
 .pending-dialog-close:hover {
   background: var(--token-state-hover, var(--bg)) !important;
 }
+
+/* ── MOBILE SAFARI NO-ZOOM FIX ─────────────────
+   iOS Safari tự zoom khi field nhập liệu nhỏ hơn 16px.
+   Chỉ tăng font-size trên mobile, desktop/tablet vẫn giữ 14px theo design system. */
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select,
+  button,
+  .form-input,
+  .form-select,
+  .student-modal input,
+  .student-modal select,
+  .student-modal textarea,
+  .note-ta,
+  .ai-summary-textarea,
+  .student-search,
+  .search-input,
+  .filter-input {
+    font-size: 16px !important;
+  }
+
+  input::placeholder,
+  textarea::placeholder,
+  .form-input::placeholder,
+  .student-modal input::placeholder,
+  .student-modal textarea::placeholder {
+    font-size: 16px !important;
+  }
+}
