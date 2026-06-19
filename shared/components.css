@@ -387,7 +387,7 @@
   border: 1px solid var(--border);
   border-radius: var(--r-xl);
   box-shadow: var(--sh);
-  padding: 16px;
+  padding: 0px;
   margin-bottom: 18px;
 }
 .week-attendance-head {
@@ -395,7 +395,9 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  padding: 12px 16px 12px 16px;
   margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
 }
 .week-attendance-head h2 {
   font-size: 18px;
@@ -412,8 +414,6 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  background: var(--bg);
-  border: 1px solid var(--border);
   border-radius: var(--r-md);
   padding: 10px;
   margin-bottom: 12px;
@@ -591,8 +591,8 @@
 }
 .week-mobile-list { display: grid; gap: 10px; }
 .week-mobile-card {
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   background: var(--surface);
   overflow: hidden;
 }
@@ -602,7 +602,6 @@
   gap: 10px;
   padding: 12px;
   background: var(--bg);
-  border-bottom: 1px solid var(--border);
 }
 .week-mobile-student strong {
   display: block;
@@ -1347,9 +1346,6 @@
 .week-mobile-list.compact-week {
   display: grid;
   gap: 12px;
-}
-.week-calendar-card {
-  border-radius: var(--r-lg);
 }
 .week-calendar-card .week-mobile-student {
   padding: 16px;
