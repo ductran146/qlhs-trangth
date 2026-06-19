@@ -32,14 +32,16 @@ export function render(el, dataset) {
           </div>
         </div>
 
-        <div class="form-row sm-dob-gender-row">
+        <div class="form-row sm-dob-gender-row sm-birth-gender-row">
           <div class="form-group">
-            <label class="form-label">Ngày sinh</label>
-            <input class="form-input ds-date-input" id="smDob" type="text" inputmode="numeric" autocomplete="off" placeholder="dd/mm/yyyy">
+            <label class="form-label">Năm sinh</label>
+            <select class="form-input form-select ds-select" id="smBirthYear">
+              ${_yearOptions()}
+            </select>
           </div>
           <div class="form-group">
             <label class="form-label">Giới tính</label>
-            <select class="form-input form-select" id="smGender">
+            <select class="form-input form-select ds-select" id="smGender">
               <option value="Nam">Nam</option>
               <option value="Nữ">Nữ</option>
             </select>
@@ -158,7 +160,7 @@ function _open(el, id = null) {
   }
 
   el.querySelector('#smName').value    = st?.name    || '';
-  el.querySelector('#smDob').value     = _formatDateForInput(st?.dob || '');
+  el.querySelector('#smBirthYear').value = _yearFromDob(st?.dob || '');
   el.querySelector('#smGender').value  = st?.gender  || 'Nam';
   el.querySelector('#smStartDate').value = _formatDateForInput(st?.startDate || todayStr());
   el.querySelector('#smStatus').value = st?.status || 'active';
@@ -239,7 +241,7 @@ function _save(el) {
   Store.upsertStudent({
     id: _editingId || uid(),
     name,
-    dob:        _parseDateInput(el.querySelector('#smDob').value) || '',
+    dob:        _dobFromYear(el.querySelector('#smBirthYear').value),
     gender:     el.querySelector('#smGender').value,
     status:     _editingId ? (el.querySelector('#smStatus')?.value || 'active') : 'active',
     startDate,
@@ -256,6 +258,34 @@ function _save(el) {
   close();
 }
 
+
+function _yearOptions() {
+  const currentYear = new Date().getFullYear();
+  const startYear = currentYear - 30;
+  const years = [];
+  years.push('<option value="">Chọn năm sinh</option>');
+  for (let y = currentYear; y >= startYear; y -= 1) {
+    years.push(`<option value="${y}">${y}</option>`);
+  }
+  return years.join('');
+}
+
+function _yearFromDob(value) {
+  if (!value) return '';
+  const raw = String(value).trim();
+  const yearMatch = raw.match(/^(\d{4})/);
+  if (yearMatch) return yearMatch[1];
+  const parsed = _parseDateInput(raw);
+  return parsed ? parsed.slice(0, 4) : '';
+}
+
+function _dobFromYear(value) {
+  const year = Number(String(value || '').trim());
+  if (!year) return '';
+  const currentYear = new Date().getFullYear();
+  if (year < currentYear - 40 || year > currentYear) return '';
+  return `${year}-01-01`;
+}
 
 function _formatDateForInput(value) {
   if (!value) return '';

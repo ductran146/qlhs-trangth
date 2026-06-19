@@ -196,7 +196,6 @@ ul, ol { list-style: none; }
 
 /* ── PAGE ────────────────────────────────── */
 .page {
-  padding: 16px;
   width: 100%;
   max-width: var(--content-max);
   margin: 0 auto;
@@ -1103,4 +1102,450 @@ textarea,
     padding: 0 12px;
     font-size: 12px;
   }
+}
+
+/* ── Student modal: birth year + gender selects follow design system ───────── */
+.student-modal .sm-birth-gender-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  gap: 16px !important;
+  width: 100% !important;
+}
+
+.student-modal .sm-birth-gender-row .form-group {
+  grid-column: auto !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  margin-bottom: 0;
+}
+
+.student-modal .ds-select,
+.student-modal select.form-input.ds-select {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  width: 100% !important;
+  height: 48px !important;
+  min-height: 48px !important;
+  max-height: 48px !important;
+  padding: 0 44px 0 16px !important;
+  border: 1px solid var(--token-border, #CBD2D6) !important;
+  border-radius: var(--r-md) !important;
+  background-color: var(--surface-2, #F5F7F880) !important;
+  color: var(--token-text-title, #141B34) !important;
+  font-family: inherit !important;
+  font-size: 16px !important;
+  font-weight: 400 !important;
+  line-height: 1.2 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M5 7.5L10 12.5L15 7.5' stroke='%23454B50' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 14px center !important;
+  background-size: 20px 20px !important;
+}
+
+.student-modal .ds-select:focus,
+.student-modal select.form-input.ds-select:focus {
+  outline: none !important;
+  border-color: var(--token-primary, #735BF9) !important;
+  background-color: var(--surface, #FFFFFF) !important;
+  box-shadow: var(--focus-ring, 0 0 0 4px #796EFF29) !important;
+}
+
+.student-modal .ds-select:invalid,
+.student-modal select.form-input.ds-select:invalid {
+  color: var(--token-text-placeholder, #A7B0B7) !important;
+}
+
+@media (max-width: 600px) {
+  .student-modal .sm-birth-gender-row,
+  .student-modal .form-row.sm-birth-gender-row,
+  .student-modal .sm-dob-gender-row.sm-birth-gender-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 16px !important;
+  }
+
+  .student-modal .sm-birth-gender-row .form-group {
+    grid-column: auto !important;
+  }
+
+  .student-modal .ds-select,
+  .student-modal select.form-input.ds-select {
+    height: 46px !important;
+    min-height: 46px !important;
+    max-height: 46px !important;
+    padding-left: 14px !important;
+    padding-right: 40px !important;
+    background-position: right 12px center !important;
+    font-size: 16px !important;
+  }
+}
+
+/* ── DESIGN SYSTEM EXACT: SELECT / DATE / TIME FIELDS ─────────────
+   Apply the latest select-box style to every dropdown, date-like field and time field.
+   Matches ductran-education design system: 1px #CBD2D6 border, 16px radius, white bg. */
+:root {
+  --ds-field-border: #CBD2D6;
+  --ds-field-bg: #FFFFFF;
+  --ds-field-bg-disabled: #F5F7F880;
+  --ds-field-text: #101013;
+  --ds-field-placeholder: #A7B0B7;
+  --ds-field-focus: #735BF9;
+  --ds-field-focus-ring: #796EFF29;
+  --ds-select-arrow: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M5 7.5L10 12.5L15 7.5' stroke='%23454B50' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* All select boxes in the app */
+select,
+.form-select,
+select.form-input,
+.student-modal .form-select,
+.student-modal select.form-input,
+.student-modal .ds-select,
+.student-modal select.form-input.ds-select,
+.student-sort,
+.attendance-debt-select {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  box-sizing: border-box !important;
+  display: block !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 44px !important;
+  height: 44px !important;
+  max-height: 44px !important;
+  padding: 11px 40px 11px 14px !important;
+  border: 1px solid var(--ds-field-border) !important;
+  border-radius: 16px !important;
+  background-color: var(--ds-field-bg) !important;
+  background-image: var(--ds-select-arrow) !important;
+  background-repeat: no-repeat !important;
+  background-position: right 14px center !important;
+  background-size: 20px 20px !important;
+  color: var(--ds-field-text) !important;
+  font-family: Inter, var(--font, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif) !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 20px !important;
+  outline: none !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease !important;
+}
+
+/* Date/time controls and text fields used as date/time pickers */
+.form-input[type="date"],
+.form-input[type="time"],
+input[type="date"].form-input,
+input[type="time"].form-input,
+.student-modal input[type="date"].form-input,
+.student-modal input[type="time"].form-input,
+.student-modal .ds-date-input,
+.student-modal .ds-time-input {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  box-sizing: border-box !important;
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  min-height: 44px !important;
+  height: 44px !important;
+  max-height: 44px !important;
+  padding: 11px 14px !important;
+  border: 1px solid var(--ds-field-border) !important;
+  border-radius: 16px !important;
+  background-color: var(--ds-field-bg) !important;
+  color: var(--ds-field-text) !important;
+  font-family: Inter, var(--font, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif) !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 20px !important;
+  text-align: left !important;
+  outline: none !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  text-overflow: ellipsis !important;
+  transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease !important;
+}
+
+/* Keep existing normal text inputs compatible with the updated border/radius when they are used in forms. */
+.form-input:not(select):not([type="checkbox"]):not([type="radio"]):not(textarea) {
+  border-width: 1px;
+  border-color: var(--ds-field-border);
+  border-radius: 16px;
+}
+
+select:focus,
+.form-select:focus,
+select.form-input:focus,
+.student-modal .form-select:focus,
+.student-modal select.form-input:focus,
+.student-modal .ds-select:focus,
+.student-modal select.form-input.ds-select:focus,
+.student-sort:focus,
+.attendance-debt-select:focus,
+.form-input[type="date"]:focus,
+.form-input[type="time"]:focus,
+input[type="date"].form-input:focus,
+input[type="time"].form-input:focus,
+.student-modal input[type="date"].form-input:focus,
+.student-modal input[type="time"].form-input:focus,
+.student-modal .ds-date-input:focus,
+.student-modal .ds-time-input:focus {
+  border-color: var(--ds-field-focus) !important;
+  background-color: var(--ds-field-bg) !important;
+  box-shadow: 0 0 0 4px var(--ds-field-focus-ring) !important;
+  outline: none !important;
+}
+
+select:disabled,
+.form-select:disabled,
+select.form-input:disabled,
+.student-modal .ds-select:disabled,
+.student-modal .ds-date-input:disabled,
+.student-modal .ds-time-input:disabled,
+.form-input[type="date"]:disabled,
+.form-input[type="time"]:disabled,
+.attendance-debt-select:disabled,
+.student-sort:disabled {
+  background-color: var(--ds-field-bg-disabled) !important;
+  color: var(--ds-field-placeholder) !important;
+  border-color: #D9DEE2 !important;
+  cursor: not-allowed !important;
+}
+
+select:invalid,
+.form-select:invalid,
+select.form-input:invalid,
+.student-modal .ds-select:invalid,
+.student-modal select.form-input.ds-select:invalid,
+.student-modal .ds-date-input::placeholder,
+.student-modal .ds-time-input::placeholder,
+.form-input[type="date"]::placeholder,
+.form-input[type="time"]::placeholder {
+  color: var(--ds-field-placeholder) !important;
+}
+
+/* Browser-specific alignment for iOS/Safari native date/time text rendering */
+.form-input[type="date"]::-webkit-date-and-time-value,
+.form-input[type="time"]::-webkit-date-and-time-value,
+.student-modal input[type="date"].form-input::-webkit-date-and-time-value,
+.student-modal input[type="time"].form-input::-webkit-date-and-time-value,
+.student-modal .ds-date-input::-webkit-date-and-time-value,
+.student-modal .ds-time-input::-webkit-date-and-time-value {
+  display: block !important;
+  width: 100% !important;
+  height: 20px !important;
+  min-height: 20px !important;
+  line-height: 20px !important;
+  text-align: left !important;
+}
+
+.form-input[type="date"]::-webkit-datetime-edit,
+.form-input[type="time"]::-webkit-datetime-edit,
+.form-input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+.form-input[type="time"]::-webkit-datetime-edit-fields-wrapper,
+.student-modal input[type="date"].form-input::-webkit-datetime-edit,
+.student-modal input[type="time"].form-input::-webkit-datetime-edit,
+.student-modal input[type="date"].form-input::-webkit-datetime-edit-fields-wrapper,
+.student-modal input[type="time"].form-input::-webkit-datetime-edit-fields-wrapper {
+  padding: 0 !important;
+  line-height: 20px !important;
+}
+
+.form-input[type="date"]::-webkit-calendar-picker-indicator,
+.form-input[type="time"]::-webkit-calendar-picker-indicator,
+.student-modal input[type="date"].form-input::-webkit-calendar-picker-indicator,
+.student-modal input[type="time"].form-input::-webkit-calendar-picker-indicator {
+  opacity: .75;
+  cursor: pointer;
+}
+
+@media (max-width: 600px) {
+  select,
+  .form-select,
+  select.form-input,
+  .student-modal .form-select,
+  .student-modal select.form-input,
+  .student-modal .ds-select,
+  .student-modal select.form-input.ds-select,
+  .student-sort,
+  .attendance-debt-select,
+  .form-input[type="date"],
+  .form-input[type="time"],
+  input[type="date"].form-input,
+  input[type="time"].form-input,
+  .student-modal input[type="date"].form-input,
+  .student-modal input[type="time"].form-input,
+  .student-modal .ds-date-input,
+  .student-modal .ds-time-input {
+    min-height: 44px !important;
+    height: 44px !important;
+    max-height: 44px !important;
+    font-size: 14px !important;
+    line-height: 20px !important;
+  }
+
+  select,
+  .form-select,
+  select.form-input,
+  .student-modal .form-select,
+  .student-modal select.form-input,
+  .student-modal .ds-select,
+  .student-modal select.form-input.ds-select,
+  .student-sort,
+  .attendance-debt-select {
+    padding: 11px 40px 11px 14px !important;
+    background-position: right 14px center !important;
+  }
+
+  .form-input[type="date"],
+  .form-input[type="time"],
+  input[type="date"].form-input,
+  input[type="time"].form-input,
+  .student-modal input[type="date"].form-input,
+  .student-modal input[type="time"].form-input,
+  .student-modal .ds-date-input,
+  .student-modal .ds-time-input {
+    padding: 11px 14px !important;
+  }
+}
+
+/* ── DESIGN SYSTEM EXACT: ALL TEXT FIELDS / INPUT DATA FIELDS ───────
+   Apply the latest field style to every text input and textarea.
+   Keep select/date/time rules above, but make normal data-entry fields match them too. */
+input.form-input:not([type="checkbox"]):not([type="radio"]),
+textarea.form-input,
+.form-input[type="text"],
+.form-input[type="number"],
+.form-input[type="email"],
+.form-input[type="password"],
+.form-input[type="tel"],
+.form-input[type="search"],
+.form-input[type="url"],
+input[type="text"].form-input,
+input[type="number"].form-input,
+input[type="email"].form-input,
+input[type="password"].form-input,
+input[type="tel"].form-input,
+input[type="search"].form-input,
+input[type="url"].form-input,
+.student-modal input.form-input:not([type="checkbox"]):not([type="radio"]),
+.student-modal textarea.form-input {
+  box-sizing: border-box !important;
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  min-height: 44px !important;
+  padding: 11px 14px !important;
+  border: 1px solid var(--ds-field-border, #CBD2D6) !important;
+  border-radius: 16px !important;
+  background-color: var(--ds-field-bg, #FFFFFF) !important;
+  color: var(--ds-field-text, #101013) !important;
+  font-family: Inter, var(--font, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif) !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 20px !important;
+  outline: none !important;
+  box-shadow: none !important;
+  transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease !important;
+}
+
+input.form-input:not([type="checkbox"]):not([type="radio"]):focus,
+textarea.form-input:focus,
+.form-input[type="text"]:focus,
+.form-input[type="number"]:focus,
+.form-input[type="email"]:focus,
+.form-input[type="password"]:focus,
+.form-input[type="tel"]:focus,
+.form-input[type="search"]:focus,
+.form-input[type="url"]:focus,
+.student-modal input.form-input:not([type="checkbox"]):not([type="radio"]):focus,
+.student-modal textarea.form-input:focus {
+  border-color: var(--ds-field-focus, #735BF9) !important;
+  background-color: var(--ds-field-bg, #FFFFFF) !important;
+  box-shadow: 0 0 0 4px var(--ds-field-focus-ring, #796EFF29) !important;
+  outline: none !important;
+}
+
+input.form-input::placeholder,
+textarea.form-input::placeholder,
+.student-modal input.form-input::placeholder,
+.student-modal textarea.form-input::placeholder {
+  color: var(--ds-field-placeholder, #A7B0B7) !important;
+  opacity: 1 !important;
+}
+
+input.form-input:disabled,
+textarea.form-input:disabled,
+.student-modal input.form-input:disabled,
+.student-modal textarea.form-input:disabled {
+  background-color: var(--ds-field-bg-disabled, #F5F7F880) !important;
+  color: var(--ds-field-placeholder, #A7B0B7) !important;
+  border-color: #D9DEE2 !important;
+  cursor: not-allowed !important;
+}
+
+textarea.form-input,
+.student-modal textarea.form-input {
+  min-height: 104px !important;
+  resize: vertical;
+}
+
+/* ── GLOBAL DIALOG HEADER FIX: title left + close icon no border ──
+   Keep latest design-system field styles. Applies to student bottom sheet and all modal dialogs. */
+.modal-header,
+.student-modal .modal-header {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  min-height: 48px !important;
+  margin: 0 0 16px !important;
+  padding: 0 52px 0 0 !important;
+}
+
+.modal-title,
+.student-modal .modal-title {
+  flex: 1 1 auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  text-align: left !important;
+  font-size: 20px !important;
+  line-height: 1.25 !important;
+  font-weight: 800 !important;
+  color: var(--ink-1, var(--ink)) !important;
+}
+
+.modal-close,
+.student-modal .modal-close,
+.attendance-modal-close,
+.pending-dialog-close {
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  color: #454B50 !important;
+}
+
+.modal-close,
+.student-modal .modal-close {
+  position: absolute !important;
+  top: 50% !important;
+  right: 0 !important;
+  transform: translateY(-50%) !important;
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 12px !important;
+}
+
+.modal-close:hover,
+.student-modal .modal-close:hover,
+.attendance-modal-close:hover,
+.pending-dialog-close:hover {
+  background: var(--token-state-hover, var(--bg)) !important;
 }

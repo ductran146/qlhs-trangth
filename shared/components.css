@@ -2614,3 +2614,420 @@
     height: 28px;
   }
 }
+
+/* ── MOBILE STUDENT DETAIL: FULL-WIDTH WHITE CONTENT SECTIONS ─────────────
+   Mobile only: section backgrounds span 100% device width.
+   Desktop/tablet keep existing framed card layout. */
+@media (max-width: 767px) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
+
+  .main-content .page.student-detail-page,
+  .page.student-detail-page {
+    width: 100vw !important;
+    max-width: none !important;
+    margin-left: calc(50% - 50vw) !important;
+    margin-right: calc(50% - 50vw) !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .student-detail-page .page-header,
+  .student-detail-page .student-detail-header {
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+  }
+
+  .student-detail-page .student-profile-card,
+  .student-detail-page .detail-report-card {
+    width: 100vw !important;
+    max-width: none !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding: 0 20px 20px !important;
+    background: var(--surface) !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  .student-detail-page .student-profile-card {
+    padding-top: 20px !important;
+    margin-bottom: 10px !important;
+  }
+
+  .student-detail-page .detail-report-card {
+    padding: 20px !important;
+    margin-bottom: 10px !important;
+  }
+
+  .student-detail-page .student-profile-main,
+  .student-detail-page .detail-section-head,
+  .student-detail-page .ai-summary-card,
+  .student-detail-page .session-note-list,
+  .student-detail-page .week-report-list {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .student-detail-page .page-header,
+  .student-detail-page .student-detail-header,
+  .student-detail-page .student-profile-card,
+  .student-detail-page .detail-report-card {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+}
+
+
+/* ── STUDENT DETAIL: AI SUMMARY ACTIONS COMPACT ROW ───────────────── */
+.ai-summary-head {
+  display: block;
+  margin-bottom: var(--space-3, 12px);
+}
+.ai-summary-head p,
+.ai-summary-actions span {
+  display: none !important;
+}
+.ai-summary-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: stretch;
+  justify-content: stretch;
+  margin-top: 12px;
+}
+.ai-summary-actions .btn {
+  width: 100%;
+  min-width: 0;
+}
+@media (max-width: 380px) {
+  .ai-summary-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── STUDENT DETAIL: COLLAPSIBLE SESSION NOTES ───────────────── */
+.session-note-head-main {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.session-note-status-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.session-note-toggle {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease, transform .15s ease;
+}
+.session-note-toggle:hover {
+  background: var(--violet-l);
+  color: var(--violet-d);
+}
+.session-note-item.is-open .session-note-toggle {
+  background: var(--violet-l);
+  color: var(--violet-d);
+}
+.session-note-item.is-open .session-note-toggle svg {
+  transform: rotate(180deg);
+}
+.session-note-content[hidden] {
+  display: none !important;
+}
+.session-note-item.no-note .session-note-head {
+  border-bottom: 0;
+}
+.session-note-empty-state {
+  min-height: 164px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+  padding: 24px 16px;
+}
+.session-note-empty-icon {
+  width: 58px;
+  height: 58px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--violet-l);
+  color: var(--violet-d);
+  font-size: 24px;
+}
+.session-note-empty-text {
+  color: var(--ink-3);
+  font-size: 14px;
+  line-height: 1.4;
+  font-weight: 500;
+}
+.session-note-add-btn {
+  min-height: 42px;
+  padding: 0 28px;
+  border: 1.5px solid var(--violet);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--violet);
+  background: var(--surface);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 800;
+}
+.session-note-add-btn:hover {
+  background: var(--violet-l);
+}
+@media (max-width: 767px) {
+  .session-note-head {
+    align-items: flex-start;
+  }
+  .session-note-status-wrap {
+    gap: 6px;
+  }
+  .session-note-toggle {
+    width: 32px;
+    height: 32px;
+  }
+  .session-note-empty-state {
+    min-height: 150px;
+  }
+}
+
+/* Student detail: remove standalone page title/description, keep edit action in profile header */
+.student-profile-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3, 12px);
+}
+.student-profile-title-main {
+  min-width: 0;
+  flex: 1;
+}
+.student-profile-edit-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .student-profile-title-row {
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .student-profile-edit-btn {
+    height: 34px;
+    padding: 0 12px;
+    font-size: 12px;
+    border-radius: 999px;
+  }
+}
+
+@media (max-width: 390px) {
+  .student-profile-title-row {
+    flex-direction: column;
+  }
+  .student-profile-edit-btn {
+    width: 100%;
+  }
+}
+
+/* ── DESIGN SYSTEM EXACT: COMPONENT-LEVEL SELECT OVERRIDES ───────── */
+.attendance-debt-select,
+.student-sort,
+.week-status-select,
+.week-calendar-select {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  box-sizing: border-box !important;
+  min-height: 44px !important;
+  height: 44px !important;
+  padding: 11px 40px 11px 14px !important;
+  border: 1px solid #CBD2D6 !important;
+  border-radius: 16px !important;
+  background-color: #FFFFFF !important;
+  background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M5 7.5L10 12.5L15 7.5' stroke='%23454B50' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 14px center !important;
+  background-size: 20px 20px !important;
+  color: #101013 !important;
+  font-family: Inter, var(--font, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif) !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 20px !important;
+  outline: none !important;
+  cursor: pointer !important;
+}
+
+.attendance-debt-select:focus,
+.student-sort:focus,
+.week-status-select:focus,
+.week-calendar-select:focus {
+  border-color: #735BF9 !important;
+  box-shadow: 0 0 0 4px #796EFF29 !important;
+  background-color: #FFFFFF !important;
+}
+
+/* ── DESIGN SYSTEM EXACT: COMPONENT TEXT FIELDS ─────────────────────
+   Textareas / note fields outside .form-input also follow the new field style. */
+.note-ta,
+.ai-summary-textarea,
+.session-note-form textarea,
+.session-note-page textarea,
+textarea.note-ta,
+textarea.ai-summary-textarea {
+  box-sizing: border-box !important;
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  min-height: 104px !important;
+  padding: 11px 14px !important;
+  border: 1px solid var(--ds-field-border, #CBD2D6) !important;
+  border-radius: 16px !important;
+  background-color: var(--ds-field-bg, #FFFFFF) !important;
+  color: var(--ds-field-text, #101013) !important;
+  font-family: Inter, var(--font, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif) !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 20px !important;
+  outline: none !important;
+  box-shadow: none !important;
+  resize: vertical;
+  transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease !important;
+}
+
+.note-ta:focus,
+.ai-summary-textarea:focus,
+.session-note-form textarea:focus,
+.session-note-page textarea:focus,
+textarea.note-ta:focus,
+textarea.ai-summary-textarea:focus {
+  border-color: var(--ds-field-focus, #735BF9) !important;
+  background-color: var(--ds-field-bg, #FFFFFF) !important;
+  box-shadow: 0 0 0 4px var(--ds-field-focus-ring, #796EFF29) !important;
+  outline: none !important;
+}
+
+.note-ta::placeholder,
+.ai-summary-textarea::placeholder,
+.session-note-form textarea::placeholder,
+.session-note-page textarea::placeholder {
+  color: var(--ds-field-placeholder, #A7B0B7) !important;
+  opacity: 1 !important;
+}
+
+/* Search inputs / inline filter inputs that may not use .form-input */
+.student-search,
+.search-input,
+.filter-input,
+input[type="search"] {
+  box-sizing: border-box !important;
+  min-height: 44px !important;
+  padding: 11px 14px !important;
+  border: 1px solid var(--ds-field-border, #CBD2D6) !important;
+  border-radius: 16px !important;
+  background-color: var(--ds-field-bg, #FFFFFF) !important;
+  color: var(--ds-field-text, #101013) !important;
+  font-family: Inter, var(--font, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif) !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 20px !important;
+  outline: none !important;
+}
+
+.student-search:focus,
+.search-input:focus,
+.filter-input:focus,
+input[type="search"]:focus {
+  border-color: var(--ds-field-focus, #735BF9) !important;
+  box-shadow: 0 0 0 4px var(--ds-field-focus-ring, #796EFF29) !important;
+}
+
+/* ── GLOBAL DIALOG HEADER FIX: title left + close icon no border ──
+   Re-applied after component overrides so no dialog returns to centered title / bordered close. */
+.modal-header,
+.student-modal .modal-header {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  min-height: 48px !important;
+  margin: 0 0 16px !important;
+  padding: 0 52px 0 0 !important;
+}
+
+.modal-title,
+.student-modal .modal-title,
+.attendance-modal-head strong,
+.pending-dialog-head h3 {
+  text-align: left !important;
+}
+
+.modal-title,
+.student-modal .modal-title {
+  flex: 1 1 auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: 20px !important;
+  line-height: 1.25 !important;
+  font-weight: 800 !important;
+}
+
+.attendance-modal-head,
+.pending-dialog-head {
+  align-items: flex-start !important;
+}
+
+.modal-close,
+.student-modal .modal-close,
+.attendance-modal-close,
+.pending-dialog-close {
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  color: #454B50 !important;
+}
+
+.modal-close,
+.student-modal .modal-close {
+  position: absolute !important;
+  top: 50% !important;
+  right: 0 !important;
+  transform: translateY(-50%) !important;
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 12px !important;
+}
+
+.attendance-modal-close,
+.pending-dialog-close {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 12px !important;
+}
+
+.modal-close:hover,
+.student-modal .modal-close:hover,
+.attendance-modal-close:hover,
+.pending-dialog-close:hover {
+  background: var(--token-state-hover, var(--bg)) !important;
+}

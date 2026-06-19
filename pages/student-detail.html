@@ -83,24 +83,20 @@ function render() {
   const weekReportsInMonth = reportsInRange(Store.get('reports') || [], st.id, 'week', month.start, month.end);
 
   page.innerHTML = `
-    <div class="page-header student-detail-header">
-      <div>
-        <a class="back-link" href="students.html">← Học sinh</a>
-        <div class="page-title">Chi tiết học sinh</div>
-        <div class="page-sub">Nhận xét từng ca học, AI gợi ý nhận xét tuần/tháng và xuất Word gửi phụ huynh</div>
-      </div>
-      <button class="btn btn-outline" id="btnEditStudent">Sửa thông tin</button>
-    </div>
-
     <section class="student-profile-card">
       <div class="student-profile-main">
         <div class="avatar lg" style="background:${avatarColor(st.name)}">${initials(st.name)}</div>
         <div class="student-profile-info">
-          <h1>${escapeHTML(st.name)}</h1>
-          <div class="student-profile-tags">
-            ${(st.difficulties || []).map(d => `<span class="tag">${escapeHTML(d)}</span>`).join('')}
-            ${st.dob ? `<span class="tag green">${age(st.dob)}</span>` : ''}
-            ${debts.length ? `<span class="tag red">Nợ ${sum(debts, 'slots')} ca</span>` : ''}
+          <div class="student-profile-title-row">
+            <div class="student-profile-title-main">
+              <h1>${escapeHTML(st.name)}</h1>
+              <div class="student-profile-tags">
+                ${(st.difficulties || []).map(d => `<span class="tag">${escapeHTML(d)}</span>`).join('')}
+                ${st.dob ? `<span class="tag green">${age(st.dob)}</span>` : ''}
+                ${debts.length ? `<span class="tag red">Nợ ${sum(debts, 'slots')} ca</span>` : ''}
+              </div>
+            </div>
+            <button class="btn btn-outline student-profile-edit-btn" id="btnEditStudent">Sửa thông tin</button>
           </div>
           ${st.goal ? `<p><span class="emoji" aria-hidden="true">🎯</span>${escapeHTML(st.goal)}</p>` : ''}
         </div>
@@ -186,6 +182,7 @@ function bindEvents(ctx) {
     const content = valueOfReport('month') || generateMonthSummary(st, monthSessions, weekReportsInMonth, month.label);
     exportWordReport(st, monthSessions, month.label, 'thang', content, weekReportsInMonth);
   });
+
   bindSessionNoteToggles();
 }
 
@@ -210,18 +207,12 @@ function summaryTemplate({ st, sessions, report, mode, label, weekReports = [] }
 
     <div class="ai-summary-card">
       <div class="ai-summary-head">
-        <div>
-          <div class="summary-note-title"><span class="emoji" aria-hidden="true">✨</span> Nhận xét ${mode === 'week' ? 'tuần' : 'tháng'} gửi phụ huynh</div>
-          <p>${mode === 'week'
-            ? 'AI tạo bản nháp từ nhận xét từng ca học. Cô giáo nên kiểm tra và chỉnh sửa trước khi lưu/xuất.'
-            : 'AI tạo bản nháp từ nhận xét tuần đã lưu. Nếu chưa có nhận xét tuần, hệ thống sẽ dùng nhận xét từng ca học trong tháng.'}</p>
-        </div>
-        <button class="btn btn-outline" data-action="ai-${mode}" ${hasSource ? '' : 'disabled'}><span class="emoji" aria-hidden="true">🤖</span> AI tạo nhận xét</button>
+        <div class="summary-note-title"><span class="emoji" aria-hidden="true">✨</span> Nhận xét ${mode === 'week' ? 'tuần' : 'tháng'} gửi phụ huynh</div>
       </div>
       <textarea class="ai-summary-textarea" data-report-content="${mode}" rows="7" placeholder="${hasSource ? 'Bấm AI tạo nhận xét hoặc tự nhập nội dung tổng hợp...' : 'Chưa có dữ liệu nhận xét để tổng hợp.'}">${escapeHTML(draft)}</textarea>
       <div class="ai-summary-actions">
-        <span>${report ? `Đã lưu · ${escapeHTML(label)}` : 'Chưa lưu bản tổng hợp'}</span>
-        <button class="btn btn-primary" data-action="save-${mode}-report">Lưu nhận xét ${mode === 'week' ? 'tuần' : 'tháng'}</button>
+        <button class="btn btn-outline" data-action="ai-${mode}" ${hasSource ? '' : 'disabled'}><span class="emoji" aria-hidden="true">🤖</span> AI tạo nhận xét</button>
+        <button class="btn btn-primary" data-action="save-${mode}-report">Lưu nhận xét</button>
       </div>
     </div>`;
 }
@@ -230,21 +221,28 @@ function sessionListTemplate(sessions) {
   if (!sessions.length) {
     return `<div class="empty-detail-note">Chưa có ca học nào trong tuần này.</div>`;
   }
+
+  const firstEmptyNoteIndex = sessions.findIndex(s => !shouldHideSessionNote(s.status || 'pending') && !sessionNoteText(s));
+  const firstExpandableIndex = firstEmptyNoteIndex >= 0
+    ? firstEmptyNoteIndex
+    : sessions.findIndex(s => !shouldHideSessionNote(s.status || 'pending'));
+
   return `
     <div class="session-note-list">
-      ${sessions.map(s => {
+      ${sessions.map((s, index) => {
         const note = sessionNoteText(s);
         const status = s.status || 'pending';
         const statusText = statusLabel(status) || 'Chưa chấm';
         const hideNote = shouldHideSessionNote(status);
+        const isOpen = !hideNote && index === firstExpandableIndex;
         const noteHref = `session-note.html?studentId=${encodeURIComponent(s.studentId || studentId)}&sessionId=${encodeURIComponent(s.id)}`;
         const noteBody = hideNote ? '' : (note ? `
-          <div class="session-note-content">
+          <div class="session-note-content" ${isOpen ? '' : 'hidden'}>
             <div class="session-note-plain">
               <span>${escapeHTML(note)}</span>
             </div>
           </div>` : `
-          <div class="session-note-content">
+          <div class="session-note-content" ${isOpen ? '' : 'hidden'}>
             <div class="session-note-plain is-empty">
               <div class="session-note-empty-state">
                 <div class="session-note-empty-icon"><span class="emoji" aria-hidden="true">💬</span></div>
@@ -253,8 +251,9 @@ function sessionListTemplate(sessions) {
               </div>
             </div>
           </div>`);
+
         return `
-        <article class="session-note-item${hideNote ? ' no-note' : ' is-open'}" data-session-note-item="${escapeHTML(s.id || '')}">
+        <article class="session-note-item${hideNote ? ' no-note' : ''}${isOpen ? ' is-open' : ''}" data-session-note-item="${escapeHTML(s.id || '')}">
           <div class="session-note-head">
             <div class="session-note-head-main">
               <strong>${fmtDate(s.date)}</strong>
@@ -263,7 +262,7 @@ function sessionListTemplate(sessions) {
             <div class="session-note-status-wrap">
               <span class="status-pill status-${status}">${statusText}</span>
               ${hideNote ? '' : `
-              <button class="session-note-toggle" type="button" data-session-toggle aria-label="Mở rộng hoặc thu gọn nhận xét" aria-expanded="true">
+              <button class="session-note-toggle" type="button" data-session-toggle aria-label="Mở rộng hoặc thu gọn nhận xét" aria-expanded="${isOpen ? 'true' : 'false'}">
                 <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                   <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
@@ -274,6 +273,24 @@ function sessionListTemplate(sessions) {
         </article>`;
       }).join('')}
     </div>`;
+}
+
+function shouldHideSessionNote(status) {
+  return status === 'absent' || status === 'busy';
+}
+
+function bindSessionNoteToggles() {
+  page.querySelectorAll('[data-session-toggle]').forEach(button => {
+    button.addEventListener('click', () => {
+      const item = button.closest('[data-session-note-item]');
+      const body = item?.querySelector('.session-note-content');
+      if (!item || !body) return;
+
+      const isOpen = item.classList.toggle('is-open');
+      body.hidden = !isOpen;
+      button.setAttribute('aria-expanded', String(isOpen));
+    });
+  });
 }
 
 function weekReportListTemplate(reports) {
@@ -314,22 +331,6 @@ function saveReport(st, type, start, end, label, content) {
 
 function valueOfReport(mode) {
   return page.querySelector(`[data-report-content="${mode}"]`)?.value.trim() || '';
-}
-
-function shouldHideSessionNote(status) {
-  return status === 'absent' || status === 'busy';
-}
-
-function bindSessionNoteToggles() {
-  page.querySelectorAll('[data-session-toggle]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const item = btn.closest('.session-note-item');
-      if (!item) return;
-      item.classList.toggle('is-collapsed');
-      const expanded = !item.classList.contains('is-collapsed');
-      btn.setAttribute('aria-expanded', String(expanded));
-    });
-  });
 }
 
 function generateWeekSummary(st, sessions, label) {
