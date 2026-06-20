@@ -307,13 +307,13 @@
   margin-bottom: 8px;
 }
 .month-student-title span {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 800;
 }
 .month-student-title small {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--ink-3);
-  font-weight: 400;
+  font-weight: 600;
   text-align: right;
 }
 .month-student-row {
@@ -378,6 +378,17 @@
   font-size: inherit;
 }
 
+
+/* ── WEEK ATTENDANCE STICKY HEADER ──────── */
+.week-attendance-sticky {
+  position: -webkit-sticky;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--surface);
+  /* margin/padding set per-context via page overrides */
+}
+
 /* ── WEEK ATTENDANCE GRID ───────────────── */
 .week-attendance {
   background: var(--surface);
@@ -406,6 +417,10 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 10px;
   margin-bottom: 12px;
 }
 .week-attendance-summary {
@@ -425,6 +440,26 @@
   color: var(--ink-3);
   font-weight: 600;
 }
+/* ── WEEK ATTENDANCE META (summary below toolbar) ── */
+.week-attendance-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-3);
+  flex-wrap: wrap;
+}
+.week-attendance-meta-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--border-2);
+  flex-shrink: 0;
+}
+
 .week-table-wrap {
   display: none;
   overflow-x: auto;
@@ -643,6 +678,8 @@
 @media (min-width: 640px) and (max-width: 900px) {
   .month-stat-grid { grid-template-columns: repeat(3, 1fr); }
 }
+
+
 
 @media (min-width: 768px) {
   .week-table-wrap { display: block; }
@@ -1339,6 +1376,8 @@
 }
 .week-calendar-card {
   border-radius: var(--r-lg);
+  overflow: hidden;   /* clip child grid to card's rounded corners */
+  isolation: isolate; /* create new stacking context so z-index inside is safe */
 }
 .week-calendar-card .week-mobile-student {
   padding: 16px;
@@ -3264,77 +3303,78 @@ input[type="search"]::-webkit-search-decoration {
 }
 }
 
-/* ═══════════════════════════════════════════
-   CHECKIN MOBILE FIX: sticky week info + collapsible cards
-   Chỉ áp dụng mobile, giữ desktop/tablet như hiện tại.
-   ═══════════════════════════════════════════ */
-@media (max-width: 767px) {
-  html,
-  body,
-  .app-shell,
-  .main-content,
-  #pageCheckin,
-  #pageCheckin .week-attendance {
-    overflow: visible !important;
-  }
-
-  .main-content:has(#pageCheckin) {
-    padding-bottom: var(--nav-h) !important;
-  }
-
-  #pageCheckin {
-    padding-bottom: 0 !important;
-  }
-
-  #pageCheckin .week-attendance {
-    overflow: visible !important;
-    margin-bottom: 0 !important;
-    padding-bottom: 16px !important;
-  }
-
-  #pageCheckin .week-attendance-sticky {
-    position: -webkit-sticky !important;
-    position: sticky !important;
-    top: 64px !important;
-    z-index: 39 !important;
-    margin: 0 -20px 12px !important;
-    padding: 16px 20px 12px !important;
-    background: var(--surface, #FFFFFF) !important;
-    border-bottom: 1px solid var(--border, #DFE3E6) !important;
-    box-shadow: 0 8px 20px rgba(16, 16, 19, .06) !important;
-  }
-
-  #pageCheckin .week-attendance-sticky .week-attendance-head {
-    margin-bottom: 12px !important;
-  }
-
-  #pageCheckin .week-attendance-sticky .week-attendance-toolbar {
-    margin-bottom: 12px !important;
-  }
-
-  #pageCheckin .week-mobile-list.compact-week {
-    margin-bottom: 0 !important;
-    padding-bottom: 0 !important;
-  }
-
-  #pageCheckin .week-calendar-card:last-child {
-    margin-bottom: 0 !important;
-  }
-
-  #pageCheckin .week-mobile-student-toggle {
+/* ── MOBILE HEADER FIXED TOP + TWO-LINE BRAND ─────────────────
+   This block is intentionally placed at the end because components.css loads after styles.css. */
+@media (max-width: 639px) {
+  .topbar {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 120 !important;
     width: 100% !important;
+  }
+
+  .main-content {
+    padding-top: 64px !important;
+  }
+
+  .topbar-title {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    gap: 1px !important;
+    line-height: 1.1 !important;
+    white-space: nowrap !important;
+  }
+
+  .topbar-title-main {
+    display: block !important;
+    color: var(--token-text-title, #101013) !important;
+    font-size: 18px !important;
+    line-height: 1.12 !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.01em !important;
+  }
+
+  .topbar-title-sub {
+    display: block !important;
+    color: var(--token-text-placeholder, #8C9396) !important;
+    font-size: 12px !important;
+    line-height: 1.15 !important;
+    font-weight: 500 !important;
+    letter-spacing: 0 !important;
+  }
+}
+
+/* [merged into unified block below] */
+
+  #pageCheckin .week-mobile-student-toggle.week-mobile-student {
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    padding: 16px !important;
     border: 0 !important;
     border-radius: 0 !important;
-    background: var(--bg) !important;
+    background: var(--bg, #F5F7F8) !important;
     color: inherit !important;
     font: inherit !important;
     text-align: left !important;
     cursor: pointer !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
   }
 
   #pageCheckin .week-mobile-student-info {
-    flex: 1 !important;
+    flex: 1 1 auto !important;
     min-width: 0 !important;
+  }
+
+  #pageCheckin .week-mobile-student-info strong,
+  #pageCheckin .week-mobile-student-info span {
+    display: block !important;
   }
 
   #pageCheckin .week-mobile-student-arrow {
@@ -3346,8 +3386,146 @@ input[type="search"]::-webkit-search-decoration {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
-    flex: 0 0 auto !important;
-    transition: transform .18s ease, background .18s ease !important;
+    flex: 0 0 32px !important;
+    margin-left: auto !important;
+    transition: transform .18s ease, background .18s ease, color .18s ease !important;
+  }
+
+  #pageCheckin .week-mobile-student-arrow svg {
+    width: 20px !important;
+    height: 20px !important;
+    display: block !important;
+  }
+
+  #pageCheckin .week-calendar-card.is-open .week-mobile-student-arrow {
+    transform: rotate(180deg) !important;
+    background: var(--violet-l, #EDEEFF) !important;
+    color: var(--violet-d, #653DEE) !important;
+  }
+
+  #pageCheckin .week-calendar-card.is-collapsed .week-calendar-grid[hidden] {
+    display: none !important;
+  }
+}
+
+
+
+
+/* ══════════════════════════════════════════════════════════════════
+   CHECKIN PAGE — MOBILE LAYOUT (max-width: 767px)
+   Sticky week header + calendar card clip mask
+   ══════════════════════════════════════════════════════════════════ */
+@media (max-width: 767px) {
+
+  /* 1. Toàn bộ ancestor chain của .week-attendance-sticky phải có
+        overflow: visible (hoặc không khai báo) để sticky hoạt động.
+        overflow: clip cũng chấp nhận được nhưng visible là an toàn nhất. */
+  #pageCheckin,
+  #pageCheckin .week-attendance {
+    overflow: visible !important;
+  }
+
+  /* 2. .week-attendance-sticky dính ngay dưới topbar cố định (64px).
+        Không dùng margin âm — sticky bám theo scroll container tự nhiên.
+        z-index 120 > topbar (40) để header không bị che. */
+  #pageCheckin .week-attendance-sticky {
+    position: -webkit-sticky !important;
+    position: sticky !important;
+    top: 64px !important;
+    z-index: 120 !important;
+    background: var(--surface, #FFFFFF) !important;
+    border-bottom: 1px solid var(--border, #DFE3E6) !important;
+    box-shadow: 0 2px 8px rgba(16, 16, 19, .08) !important;
+    /* padding bù cho padding của .week-attendance để không bị hụt cạnh */
+    margin-left: -16px !important;
+    margin-right: -16px !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    padding-top: 12px !important;
+    padding-bottom: 10px !important;
+  }
+
+  #pageCheckin .week-attendance-head {
+    align-items: flex-start !important;
+    margin-bottom: 12px !important;
+  }
+
+  #pageCheckin .week-attendance-toolbar {
+    margin-bottom: 0 !important;
+    background: var(--bg, #F5F7F8) !important;
+  }
+
+  #pageCheckin .week-attendance-summary strong {
+    font-size: 16px !important;
+    font-weight: 800 !important;
+    line-height: 1.25 !important;
+  }
+
+  #pageCheckin .week-attendance-meta {
+    padding: 4px 0 6px !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    color: var(--ink-3, #8C9396) !important;
+    justify-content: center !important;
+    background: var(--surface, #FFFFFF) !important;
+  }
+
+  /* 3. week-calendar-card: overflow:hidden để clip content vào border-radius.
+        Dùng isolation:isolate để tạo stacking context riêng.
+        overflow:hidden trên card KHÔNG ảnh hưởng sticky ở trên vì
+        .week-attendance-sticky là sibling, không phải con của card. */
+  #pageCheckin .week-calendar-card {
+    overflow: hidden !important;
+    border-radius: var(--r-lg, 16px) !important;
+    isolation: isolate !important;
+    background: var(--surface, #FFFFFF) !important;
+  }
+
+  #pageCheckin .week-calendar-card:last-child {
+    margin-bottom: 0 !important;
+  }
+
+  /* 4. Student toggle button */
+  #pageCheckin .week-mobile-student,
+  #pageCheckin .week-mobile-student-toggle.week-mobile-student {
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    padding: 16px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: var(--bg, #F5F7F8) !important;
+    color: inherit !important;
+    font: inherit !important;
+    text-align: left !important;
+    cursor: pointer !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+  }
+
+  #pageCheckin .week-mobile-student-info {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+
+  #pageCheckin .week-mobile-student-info strong,
+  #pageCheckin .week-mobile-student-info span {
+    display: block !important;
+  }
+
+  #pageCheckin .week-mobile-student-arrow {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 999px !important;
+    background: var(--surface, #FFFFFF) !important;
+    color: var(--ink-2, #454B50) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex: 0 0 32px !important;
+    margin-left: auto !important;
+    transition: transform .18s ease, background .18s ease, color .18s ease !important;
   }
 
   #pageCheckin .week-mobile-student-arrow svg {
@@ -3366,51 +3544,62 @@ input[type="search"]::-webkit-search-decoration {
     display: none !important;
   }
 
-  #pageCheckin .week-calendar-card.is-collapsed {
-    overflow: hidden !important;
+  #pageCheckin .week-mobile-list.compact-week {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+    gap: 12px !important;
   }
 }
 
-/* ═══════════════════════════════════════════
-   CHECKIN MOBILE TYPOGRAPHY ALIGNMENT
-   - "Chấm công tuần" giống title "Tình trạng từng học sinh"
-   - Meta tuần giống text "2 ca nghỉ/bận trong tháng"
-   Chỉ áp dụng mobile.
-   ═══════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════
+   CHECKIN MOBILE — FINAL STICKY UNDER FIXED HEADER PATCH
+   Keep the week attendance sticky block exactly below the fixed topbar.
+   Desktop/tablet remain unchanged.
+   ══════════════════════════════════════════════════════════════════ */
 @media (max-width: 767px) {
-  #pageCheckin .week-attendance-head .section-label {
-    color: var(--ink, #101013) !important;
-    font-size: 16px !important;
-    line-height: 1.25 !important;
-    font-weight: 800 !important;
-    letter-spacing: -0.01em !important;
-    text-transform: none !important;
-    margin: 0 !important;
+  :root {
+    --qlhs-mobile-header-height: 64px;
   }
 
-  #pageCheckin .week-attendance-meta {
-    justify-content: flex-end !important;
-    gap: 6px !important;
-    padding: 0 !important;
-    margin: 0 0 12px 0 !important;
-    color: var(--ink-3, #8C9396) !important;
-    font-size: 12px !important;
-    line-height: 1.35 !important;
-    font-weight: 400 !important;
-    text-align: center !important;
+  .topbar {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: var(--qlhs-mobile-header-height) !important;
+    min-height: var(--qlhs-mobile-header-height) !important;
+    z-index: 1000 !important;
   }
 
-  #pageCheckin .week-attendance-meta span {
-    color: inherit !important;
-    font-size: inherit !important;
-    line-height: inherit !important;
-    font-weight: inherit !important;
+  .main-content {
+    padding-top: var(--qlhs-mobile-header-height) !important;
   }
 
-  #pageCheckin .week-attendance-meta-dot {
-    width: 3px !important;
-    height: 3px !important;
-    margin: 0 2px !important;
-    background: var(--border-2, #CBD2D6) !important;
+  #pageCheckin,
+  #pageCheckin .week-attendance {
+    overflow: visible !important;
+  }
+
+  #pageCheckin .week-attendance-sticky {
+    position: -webkit-sticky !important;
+    position: sticky !important;
+    top: var(--qlhs-mobile-header-height) !important;
+    z-index: 900 !important;
+    background: var(--surface, #FFFFFF) !important;
+    margin-top: 0 !important;
+    border-bottom: 1px solid var(--border, #DFE3E6) !important;
+    box-shadow: 0 2px 8px rgba(16, 16, 19, .08) !important;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+  }
+
+  #pageCheckin .week-attendance-sticky::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -1px;
+    height: 1px;
+    background: var(--surface, #FFFFFF);
   }
 }

@@ -85,7 +85,7 @@ export function render(el) {
       <div class="month-student-panel">
         <div class="month-student-title">
           <span>Tình trạng từng học sinh</span>
-          <small>${formatNumber(absentBusySlots)} ca nghỉ/bận trong tháng</small>
+          <small>${formatNumber(absentBusySlots)} ca nghỉ/bận</small>
         </div>
         ${priorityRows.length ? priorityRows.map(rowTemplate).join('') : `
           <div class="text-muted fs-13" style="padding:10px 0;text-align:center">Chưa có học sinh</div>
