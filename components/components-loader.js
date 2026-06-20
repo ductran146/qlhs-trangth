@@ -1,11 +1,12 @@
 /**
  * components/components-loader.js
- * Component boot with Firestore-first data sync.
+ * Fast component boot for mobile.
  *
  * Why:
- * - Render header/bottom navigation placeholders immediately.
- * - Authenticate and start Firestore before rendering data components.
- * - Avoid showing stale local/browser cache on Safari/Chrome.
+ * - Do not import Firestore/Store before the shell is visible.
+ * - Render navigation/header placeholders first, then hydrate protected data.
+ * - Start Firestore realtime in the background so tab switching does not wait for
+ *   the first onSnapshot() of all collections.
  */
 
 const FAST_COMPONENTS = new Set(['bottom-nav', 'sidebar']);
@@ -99,9 +100,9 @@ async function requireFirebaseAuth() {
 
 async function startStoreRealtime() {
   const { Store } = await import('../shared/store.js');
-  // Wait for Store.init(). The store itself only waits briefly for the first
-  // Firestore snapshots, then components render and continue to update realtime.
-  await Store.init();
+  // Do not await here. The UI can draw from local cache immediately and will
+  // update again when Firestore snapshots arrive.
+  Store.init().catch((err) => console.error('[loader] Store.init failed:', err));
   return Store;
 }
 
@@ -116,15 +117,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (name === 'bottom-nav') renderBottomNavFallback(el, { ...el.dataset });
   }
 
-  // Sidebar and bottom-nav do not need Firebase data; hydrate them immediately.
-  await Promise.all(slots
-    .filter(el => FAST_COMPONENTS.has(el.dataset.component))
-    .map(renderComponent));
-
-  // 2) Auth gate + topbar + Firestore first sync.
-  // Do this before rendering data components so Safari/Chrome do not show
-  // different stale local-cache states.
-  await requireFirebaseAuth().then(async (Auth) => {
+  // Start Auth + Firestore as early as possible, but do not await it.
+  // This reduces the delay before remote data reaches Notes/Students/Income
+  // while still letting every page render from local cache first.
+  const authAndStoreBoot = requireFirebaseAuth().then(async (Auth) => {
     if (!Auth) return null;
     await Promise.all(slots
       .filter(el => el.dataset.component === 'topbar')
@@ -135,12 +131,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     return null;
   });
 
-  // 3) Render data components after Store.init() has started Firestore and
-  // waited briefly for first snapshots. Realtime subscriptions still update UI
-  // immediately when later server data arrives.
+  // Sidebar and bottom-nav do not need Firebase data; hydrate them immediately.
+  await Promise.all(slots
+    .filter(el => FAST_COMPONENTS.has(el.dataset.component))
+    .map(renderComponent));
+
+  // 2) Render data components immediately from local cache.
+  // Important on mobile: do not wait for Firebase Auth/Firestore SDK imports or
+  // first snapshots before showing Checkin content. Firestore realtime starts in
+  // the background below and will refresh these components automatically.
   await Promise.all(slots
     .filter(el => DATA_COMPONENTS.has(el.dataset.component))
     .map(renderComponent));
+
+  // 3) Auth gate + Firestore realtime already started in the background above.
+  // Keep the promise referenced so browsers do not treat it as unused work.
+  void authAndStoreBoot;
 
   // 4) Render any remaining custom components.
   await Promise.all(slots
