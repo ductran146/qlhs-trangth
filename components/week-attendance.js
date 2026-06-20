@@ -63,7 +63,6 @@ function draw(el) {
         <div class="week-attendance-head">
           <div>
             <div class="section-label">Chấm công tuần</div>
-            <h2>Tuần ${week.label}</h2>
           </div>
           <button class="btn-sm" data-action="add-manual">+ Thêm buổi</button>
         </div>
@@ -71,10 +70,16 @@ function draw(el) {
         <div class="week-attendance-toolbar">
           <button class="icon-btn" data-action="prev-week" aria-label="Tuần trước">‹</button>
           <div class="week-attendance-summary">
-            <strong>${taughtCount} buổi · ${formatSlots(actualSlots)} ca thực dạy</strong>
-            <span>${activeStudentCount} bé đang dạy · ${pendingCount} buổi chưa chấm · ${formatSlots(totalDebtSlots(debts))} ca còn nợ</span>
+            <strong>Tuần ${week.label}</strong>
           </div>
           <button class="icon-btn" data-action="next-week" aria-label="Tuần sau">›</button>
+        </div>
+        <div class="week-attendance-meta">
+          <span>${activeStudentCount} bé đang dạy</span>
+          <span class="week-attendance-meta-dot" aria-hidden="true"></span>
+          <span>${pendingCount} buổi chưa chấm</span>
+          <span class="week-attendance-meta-dot" aria-hidden="true"></span>
+          <span>${formatSlots(totalDebtSlots(debts))} ca còn nợ</span>
         </div>
       </div>
 
