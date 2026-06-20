@@ -199,6 +199,7 @@ ul, ol { list-style: none; }
   width: 100%;
   max-width: var(--content-max);
   margin: 0 auto;
+  padding: 16px;
 }
 @media (min-width: 640px) { .page { padding: 24px 28px; } }
 @media (min-width: 1024px) { .page { padding: 28px 36px; } }
