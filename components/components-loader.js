@@ -120,12 +120,25 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Start Auth + Firestore as early as possible, but do not await it.
   // This reduces the delay before remote data reaches Notes/Students/Income
   // while still letting every page render from local cache first.
+  //
+  // FIX: startStoreRealtime() được gọi độc lập với việc có topbar hay không.
+  // Trước đây Store.init() chỉ chạy sau khi render topbar xong — các trang
+  // không có data-component="topbar" (session-note, student-detail...) sẽ
+  // không bao giờ đăng ký Firestore listener → data không sync về.
   const authAndStoreBoot = requireFirebaseAuth().then(async (Auth) => {
     if (!Auth) return null;
-    await Promise.all(slots
-      .filter(el => el.dataset.component === 'topbar')
-      .map(renderComponent));
-    return startStoreRealtime();
+
+    // Render topbar (nếu trang có) và khởi động Store song song — không để
+    // Store phụ thuộc vào việc topbar có tồn tại trên trang hay không.
+    const topbarSlots = slots.filter(el => el.dataset.component === 'topbar');
+    await Promise.all([
+      topbarSlots.length > 0
+        ? Promise.all(topbarSlots.map(renderComponent))
+        : Promise.resolve(),
+      startStoreRealtime(),
+    ]);
+
+    return true;
   }).catch((err) => {
     console.error('[loader] Auth/Firestore boot failed:', err);
     return null;
