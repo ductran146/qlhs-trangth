@@ -47,6 +47,17 @@ let _fallbackTimer = null;
 let _firstSnapshotWaiters = [];
 let _isFlushingPendingWrites = false;
 
+// Keep pending write queues durable even if the teacher changes tab/page or presses F5
+// immediately after saving a student/session. The actual Firestore request may be
+// cancelled by the browser during navigation, but the queued operation will be
+// replayed on the next app boot.
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', persistPendingQueues);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') persistPendingQueues();
+  });
+}
+
 async function loadFirebaseRuntime() {
   if (_firebaseApi && _authApi) return { ..._firebaseApi, Auth: _authApi.Auth };
   const [{ Auth }, firebase] = await Promise.all([
@@ -347,38 +358,37 @@ function updateFirestoreStatusFromSnapshot(snapshot) {
 async function writeItemToFirestore(key, item) {
   if (!item?.id) return;
   queuePendingDocWrite(key, item);
-  flushPendingWrites();
+  await flushPendingWrites();
 }
 
 async function deleteItemFromFirestore(key, id) {
   if (!id) return;
   queuePendingDelete(key, id);
-  flushPendingWrites();
+  await flushPendingWrites();
 }
 
 async function syncCollectionToFirestore(key, value, options = {}) {
-  // Firestore is the source of truth. Collection replacement is only allowed
-  // after the first remote snapshot for that collection has been received.
-  // This prevents stale browser localStorage from overwriting/deleting newer
-  // Firestore data when Safari/Chrome open the app with different caches.
-  if (!_firebaseReady || !_teacherId || !_firebaseApi) return;
-  const allowDeletes = options.allowDeletes === true && _firstSnapshot[key] === true;
+  // Queue every collection-level write before attempting Firestore.
+  // Some UI flows call Store.set('students', nextList) instead of upsertStudent().
+  // If the teacher switches page/F5 immediately, direct setDoc() can be cancelled;
+  // a persisted pending queue makes the write replay on next boot.
   const list = Array.isArray(value) ? value : [];
-  const nextIds = new Set(list.map(item => String(item.id)).filter(Boolean));
+  const allowDeletes = options.allowDeletes === true && _firstSnapshot[key] === true;
+  const nextIds = new Set(list.map(item => String(item?.id || '')).filter(Boolean));
   const previousIds = _remoteIds[key] || new Set();
 
-  const writes = [];
   for (const item of list) {
     if (!item?.id) continue;
-    writes.push(_firebaseApi.setDoc(teacherDoc(key, item.id), cleanForFirestore(item), { merge: false }));
+    queuePendingDocWrite(key, item);
   }
+
   if (allowDeletes) {
     for (const id of previousIds) {
-      if (!nextIds.has(id)) writes.push(_firebaseApi.deleteDoc(teacherDoc(key, id)));
+      if (!nextIds.has(id)) queuePendingDelete(key, id);
     }
   }
 
-  await Promise.all(writes).catch((err) => setSyncError(`[store] Sync ${key} failed`, err));
+  await flushPendingWrites();
 }
 
 function setSyncError(message, err, options = {}) {
@@ -520,6 +530,8 @@ const Store = {
 
   set(key, value, options = {}) {
     setLocalCache(key, value, true, 'optimistic-local');
+    // Persist the intended write immediately. This covers add/edit flows that
+    // replace a whole collection and then navigate away before Firestore returns.
     syncCollectionToFirestore(key, value, { allowDeletes: options.allowDeletes === true || _firstSnapshot[key] === true });
   },
 
