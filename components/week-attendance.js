@@ -29,6 +29,7 @@ const STATUS_META = {
 };
 
 let weekOffset = 0;
+const collapsedStudentIds = new Set();
 
 export function render(el) {
   draw(el);
@@ -58,21 +59,23 @@ function draw(el) {
 
   el.innerHTML = `
     <section class="week-attendance" aria-label="Chấm công tuần">
-      <div class="week-attendance-head">
-        <div>
-          <div class="section-label">Chấm công tuần</div>
-          <h2>Tuần ${week.label}</h2>
+      <div class="week-attendance-sticky">
+        <div class="week-attendance-head">
+          <div>
+            <div class="section-label">Chấm công tuần</div>
+            <h2>Tuần ${week.label}</h2>
+          </div>
+          <button class="btn-sm" data-action="add-manual">+ Thêm buổi</button>
         </div>
-        <button class="btn-sm" data-action="add-manual">+ Thêm buổi</button>
-      </div>
 
-      <div class="week-attendance-toolbar">
-        <button class="icon-btn" data-action="prev-week" aria-label="Tuần trước">‹</button>
-        <div class="week-attendance-summary">
-          <strong>${taughtCount} buổi · ${formatSlots(actualSlots)} ca thực dạy</strong>
-          <span>${activeStudentCount} bé đang dạy · ${pendingCount} buổi chưa chấm · ${formatSlots(totalDebtSlots(debts))} ca còn nợ</span>
+        <div class="week-attendance-toolbar">
+          <button class="icon-btn" data-action="prev-week" aria-label="Tuần trước">‹</button>
+          <div class="week-attendance-summary">
+            <strong>${taughtCount} buổi · ${formatSlots(actualSlots)} ca thực dạy</strong>
+            <span>${activeStudentCount} bé đang dạy · ${pendingCount} buổi chưa chấm · ${formatSlots(totalDebtSlots(debts))} ca còn nợ</span>
+          </div>
+          <button class="icon-btn" data-action="next-week" aria-label="Tuần sau">›</button>
         </div>
-        <button class="icon-btn" data-action="next-week" aria-label="Tuần sau">›</button>
       </div>
 
       ${students.length ? tableTemplate(students, dates, sessions) : emptyTemplate()}
@@ -121,16 +124,20 @@ function mobileTemplate(students, dates, sessions) {
     <div class="week-mobile-list compact-week">
       ${students.map(st => {
         const cells = dates.map(d => buildCell(st, d, sessions));
+        const isCollapsed = collapsedStudentIds.has(st.id);
         return `
-          <article class="week-mobile-card week-calendar-card">
-            <div class="week-mobile-student">
+          <article class="week-mobile-card week-calendar-card ${isCollapsed ? 'is-collapsed' : 'is-open'}">
+            <button class="week-mobile-student week-mobile-student-toggle" type="button" data-action="toggle-week-student" data-student-id="${st.id}" aria-expanded="${isCollapsed ? 'false' : 'true'}">
               <div class="avatar sm" style="background:${avatarColor(st.name)}">${initials(st.name)}</div>
-              <div>
+              <div class="week-mobile-student-info">
                 <strong>${escapeHTML(st.name)}</strong>
                 <span>Bắt đầu ${st.schedTime || '--:--'}</span>
               </div>
-            </div>
-            <div class="week-calendar-grid" role="group" aria-label="Lịch chấm công tuần của ${escapeHTML(st.name)}">
+              <span class="week-mobile-student-arrow" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+            </button>
+            <div class="week-calendar-grid" role="group" aria-label="Lịch chấm công tuần của ${escapeHTML(st.name)}" ${isCollapsed ? 'hidden' : ''}>
               ${cells.map(c => mobileCalendarCellTemplate(c)).join('')}
             </div>
           </article>`;
@@ -246,6 +253,16 @@ function bindEvents(el, dates) {
 
   el.querySelector('[data-action="add-manual"]')?.addEventListener('click', () => {
     addManualSession(el, dates);
+  });
+
+  el.querySelectorAll('[data-action="toggle-week-student"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const studentId = btn.dataset.studentId;
+      if (!studentId) return;
+      if (collapsedStudentIds.has(studentId)) collapsedStudentIds.delete(studentId);
+      else collapsedStudentIds.add(studentId);
+      draw(el);
+    });
   });
 
   el.querySelectorAll('[data-action="open-attendance"]').forEach(btn => {

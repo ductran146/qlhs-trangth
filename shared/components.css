@@ -596,7 +596,6 @@
   gap: 10px;
   padding: 12px;
   background: var(--bg);
-  border-bottom: 1px solid var(--border);
 }
 .week-mobile-student strong {
   display: block;
@@ -3228,11 +3227,20 @@ input[type="search"]::-webkit-search-decoration {
   }
 }
 
+
 /* ═══════════════════════════════════════════
    STUDENT EDIT DIALOG: START DATE + STATUS SAME ROW
    Mobile only. Keep Add mode as one full-width start-date field.
    ═══════════════════════════════════════════ */
 @media (max-width: 767px) {
+  .student-modal .sm-birth-gender-row {
+    margin-bottom: 16px;
+  }
+
+  .student-modal .sm-start-status-row {
+    margin-top: 0;
+  }
+
   .student-modal .sm-start-status-row.is-edit-mode,
   .student-modal .sm-start-status-row:has(.sm-status-group:not([hidden])) {
     display: grid !important;
@@ -3240,13 +3248,6 @@ input[type="search"]::-webkit-search-decoration {
     gap: 16px !important;
     width: 100% !important;
     padding: 16px 0 0 0 !important;
-  }
-@media (max-width: 767px) {
-  .student-modal .sm-birth-gender-row {
-    margin-bottom: 16px;
-  }
-  .student-modal .sm-start-status-row {
-    margin-top: 0;
   }
 
   .student-modal .sm-start-status-row.is-edit-mode .form-group,
@@ -3267,4 +3268,101 @@ input[type="search"]::-webkit-search-decoration {
     grid-column: 1 / -1 !important;
   }
 }
+
+/* ═══════════════════════════════════════════
+   CHECKIN MOBILE: STICKY WEEK HEADER + COLLAPSIBLE STUDENT WEEK CARDS
+   Mobile only. Desktop/tablet keep existing layout.
+   ═══════════════════════════════════════════ */
+@media (max-width: 767px) {
+  #pageCheckin {
+    padding-bottom: 0 !important;
+  }
+
+  #pageCheckin .week-attendance {
+    overflow: visible !important;
+    margin-bottom: 0 !important;
+    padding-bottom: 16px !important;
+  }
+
+  #pageCheckin .week-attendance-sticky {
+    position: sticky !important;
+    top: 64px !important;
+    z-index: 35 !important;
+    margin: 0 -20px 12px !important;
+    padding: 16px 20px 12px !important;
+    background: var(--surface, #FFFFFF) !important;
+    border-bottom: 1px solid var(--border, #DFE3E6) !important;
+  }
+
+  #pageCheckin .week-attendance-sticky .week-attendance-head {
+    margin-bottom: 12px !important;
+  }
+
+  #pageCheckin .week-attendance-sticky .week-attendance-toolbar {
+    margin-bottom: 0 !important;
+  }
+
+  #pageCheckin .week-mobile-list.compact-week {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  #pageCheckin .week-calendar-card:last-child {
+    margin-bottom: 0 !important;
+  }
+
+  #pageCheckin .week-mobile-student-toggle {
+    width: 100% !important;
+    border: 0 !important;
+    font: inherit !important;
+    text-align: left !important;
+    cursor: pointer !important;
+    color: var(--ink, #101013) !important;
+  }
+
+  #pageCheckin .week-mobile-student-info {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+
+  #pageCheckin .week-mobile-student-arrow {
+    width: 32px !important;
+    height: 32px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex: 0 0 auto !important;
+    border-radius: 999px !important;
+    color: var(--ink-2, #454B50) !important;
+    transition: transform .18s ease, background .18s ease, color .18s ease !important;
+  }
+
+  #pageCheckin .week-mobile-student-arrow svg {
+    width: 20px !important;
+    height: 20px !important;
+    display: block !important;
+  }
+
+  #pageCheckin .week-calendar-card.is-open .week-mobile-student-arrow {
+    transform: rotate(180deg) !important;
+    background: var(--token-primary-soft, #EDEEFF) !important;
+    color: var(--token-primary, #735BF9) !important;
+  }
+
+  #pageCheckin .week-calendar-card.is-collapsed .week-mobile-student {
+    border-bottom: 0 !important;
+  }
+
+  #pageCheckin .week-calendar-card.is-collapsed .week-calendar-grid[hidden] {
+    display: none !important;
+  }
+
+  #pageCheckin .week-calendar-card.is-collapsed {
+    overflow: hidden !important;
+  }
+
+  .main-content:has(#pageCheckin) {
+    padding-bottom: var(--nav-h) !important;
+  }
 }
+
