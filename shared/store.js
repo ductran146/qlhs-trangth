@@ -26,6 +26,9 @@ const _listeners = {};
 const _syncStatus = { auth: 'idle', firestore: 'cache', error: null, lastRemoteAt: null, source: 'local-cache' };
 const _pendingDocWrites = [];
 const _pendingDeletes = [];
+// Queue cho Store.set() — dùng khi Firebase chưa ready (auth chưa xong, Firestore chưa init).
+// Mỗi entry: { key, value, allowDeletes }. Flush sau snapshot server đầu tiên.
+const _pendingCollectionSets = [];
 const _cache = Object.fromEntries(COLLECTION_KEYS.map(key => [key, readLocalOrDefault(key)]));
 const _remoteIds = Object.fromEntries(COLLECTION_KEYS.map(key => [key, new Set()]));
 const _firstSnapshot = Object.fromEntries(COLLECTION_KEYS.map(key => [key, false]));
@@ -208,7 +211,17 @@ async function syncCollectionToFirestore(key, value, options = {}) {
   // after the first remote snapshot for that collection has been received.
   // This prevents stale browser localStorage from overwriting/deleting newer
   // Firestore data when Safari/Chrome open the app with different caches.
-  if (!_firebaseReady || !_teacherId || !_firebaseApi) return;
+  if (!_firebaseReady || !_teacherId || !_firebaseApi) {
+    // FIX: thay vì silent return, queue lại để flush khi Firebase sẵn sàng.
+    // Quan trọng với syncDebts/reconcileDebts — chúng dùng Store.set() ngay
+    // khi người dùng thao tác, trước khi Auth/Firestore init xong.
+    // Chỉ giữ entry mới nhất cho mỗi key (last-write-wins) để tránh write thừa.
+    const idx = _pendingCollectionSets.findIndex(p => p.key === key);
+    const entry = { key, value: Array.isArray(value) ? [...value] : [], allowDeletes: options.allowDeletes === true };
+    if (idx > -1) _pendingCollectionSets[idx] = entry;
+    else _pendingCollectionSets.push(entry);
+    return;
+  }
   const allowDeletes = options.allowDeletes === true && _firstSnapshot[key] === true;
   const list = Array.isArray(value) ? value : [];
   const nextIds = new Set(list.map(item => String(item.id)).filter(Boolean));
@@ -240,11 +253,16 @@ async function flushPendingWrites() {
   if (!_firebaseReady || !_teacherId || !_firebaseApi) return;
   const docWrites = _pendingDocWrites.splice(0);
   const deletes = _pendingDeletes.splice(0);
+  const collectionSets = _pendingCollectionSets.splice(0);
   for (const item of docWrites) {
     await writeItemToFirestore(item.key, item.item);
   }
   for (const item of deletes) {
     await deleteItemFromFirestore(item.key, item.id);
+  }
+  // Flush queued Store.set() calls — chạy sau cùng để không ghi đè upsert riêng lẻ
+  for (const item of collectionSets) {
+    await syncCollectionToFirestore(item.key, item.value, { allowDeletes: item.allowDeletes });
   }
 }
 
