@@ -12,6 +12,8 @@
 const AVATAR_COLORS = ['#796EFF','#2ECC71','#FFB800','#FF2323','#02AAD8','#9D70F9','#08D1A0','#FF784E'];
 const COLLECTION_KEYS = ['students', 'sessions', 'debts', 'reports'];
 const BOOTSTRAP_KEY = 'nkct_bootstrap_state';
+const STATIC_DATA_FILE = 'data.json';
+const FIRESTORE_FALLBACK_TIMEOUT_MS = 5000;
 
 const DEFAULT = {
   students: [],
@@ -33,6 +35,8 @@ let _unsubscribers = [];
 let _firebaseReady = false;
 let _firebaseApi = null;
 let _authApi = null;
+let _staticFallbackPromise = null;
+let _fallbackTimer = null;
 
 async function loadFirebaseRuntime() {
   if (_firebaseApi && _authApi) return { ..._firebaseApi, Auth: _authApi.Auth };
@@ -70,6 +74,73 @@ function structuredCloneSafe(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function hasAnyCachedData() {
+  return COLLECTION_KEYS.some(key => Array.isArray(_cache[key]) && _cache[key].length > 0);
+}
+
+function normalizeDataPayload(payload) {
+  const source = payload && typeof payload === 'object' && payload.data && typeof payload.data === 'object'
+    ? payload.data
+    : payload;
+  const next = {};
+  for (const key of COLLECTION_KEYS) {
+    next[key] = Array.isArray(source?.[key]) ? source[key] : [];
+  }
+  return next;
+}
+
+function staticDataUrl() {
+  const inPagesDir = location.pathname.includes('/pages/');
+  const base = inPagesDir ? '../' : './';
+  return `${base}${STATIC_DATA_FILE}?t=${Date.now()}`;
+}
+
+async function fetchStaticDataJson() {
+  const response = await fetch(staticDataUrl(), { cache: 'no-store' });
+  if (!response.ok) throw new Error(`Không đọc được ${STATIC_DATA_FILE}: HTTP ${response.status}`);
+  return normalizeDataPayload(await response.json());
+}
+
+async function loadStaticFallback(reason = 'firestore-fallback') {
+  if (_staticFallbackPromise) return _staticFallbackPromise;
+  _staticFallbackPromise = (async () => {
+    try {
+      const payload = await fetchStaticDataJson();
+      for (const key of COLLECTION_KEYS) {
+        setLocalCache(key, payload[key], true, 'static-json');
+      }
+      _syncStatus.firestore = 'static';
+      _syncStatus.source = 'static-json';
+      _syncStatus.error = reason;
+      Store.emit('sync', Store.getSyncStatus());
+      return true;
+    } catch (err) {
+      console.warn('[store] Static data fallback failed:', err);
+      _syncStatus.firestore = hasAnyCachedData() ? 'local-cache' : 'error';
+      _syncStatus.source = hasAnyCachedData() ? 'local-cache' : 'empty-default';
+      _syncStatus.error = err?.message || String(err);
+      Store.emit('sync', Store.getSyncStatus());
+      return false;
+    }
+  })();
+  return _staticFallbackPromise;
+}
+
+function startFirestoreFallbackTimer() {
+  if (_fallbackTimer) clearTimeout(_fallbackTimer);
+  _fallbackTimer = setTimeout(() => {
+    const hasSnapshot = COLLECTION_KEYS.some(key => _firstSnapshot[key] === true);
+    if (!_firebaseReady || hasSnapshot || hasAnyCachedData()) return;
+    loadStaticFallback('firestore-timeout');
+  }, FIRESTORE_FALLBACK_TIMEOUT_MS);
+}
+
+function stopFirestoreFallbackTimerIfReady() {
+  if (!allCollectionsHaveSnapshot() || !_fallbackTimer) return;
+  clearTimeout(_fallbackTimer);
+  _fallbackTimer = null;
+}
+
 function teacherCollection(key) {
   if (!_teacherId || !_firebaseApi) throw new Error('Firestore teacherId is not ready.');
   return _firebaseApi.collection(_firebaseApi.db, 'teachers', _teacherId, key);
@@ -104,6 +175,7 @@ function allCollectionsHaveSnapshot() {
 }
 
 function updateFirestoreStatusFromSnapshot(snapshot) {
+  stopFirestoreFallbackTimerIfReady();
   _syncStatus.firestore = allCollectionsHaveSnapshot() ? 'synced' : 'syncing';
   _syncStatus.source = snapshot?.metadata?.fromCache ? 'firestore-cache' : 'firestore-server';
   if (!snapshot?.metadata?.fromCache) {
@@ -156,11 +228,12 @@ async function syncCollectionToFirestore(key, value, options = {}) {
   await Promise.all(writes).catch((err) => setSyncError(`[store] Sync ${key} failed`, err));
 }
 
-function setSyncError(message, err) {
+function setSyncError(message, err, options = {}) {
   console.error(message + ':', err);
   _syncStatus.error = err?.message || String(err || message);
   _syncStatus.firestore = 'error';
   Store.emit('sync', Store.getSyncStatus());
+  if (options.staticFallback === true) loadStaticFallback(_syncStatus.error);
 }
 
 async function flushPendingWrites() {
@@ -213,6 +286,7 @@ const Store = {
       _syncStatus.firestore = 'syncing';
       _syncStatus.error = null;
       Store.emit('sync', Store.getSyncStatus());
+      startFirestoreFallbackTimer();
 
       // Attach realtime listeners, but do NOT await the first snapshots.
       // On iPhone/Safari page navigation can re-download Firebase SDK + wait for
@@ -238,7 +312,7 @@ const Store = {
           // current Firestore state has had a chance to arrive.
           if (!snapshot.metadata.fromCache) flushPendingWrites();
         }, (error) => {
-          setSyncError(`[store] Firestore listener failed for ${key}`, error);
+          setSyncError(`[store] Firestore listener failed for ${key}`, error, { staticFallback: true });
         });
         _unsubscribers.push(unsubscribe);
       });
@@ -269,6 +343,10 @@ const Store = {
 
   getSyncStatus() {
     return { ..._syncStatus, teacherId: _teacherId, firebaseReady: _firebaseReady };
+  },
+
+  async loadStaticFallback() {
+    return loadStaticFallback('manual-static-fallback');
   },
 
   upsertStudent(obj) {
