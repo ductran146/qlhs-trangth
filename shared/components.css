@@ -417,7 +417,7 @@
   min-width: 0;
 }
 .week-attendance-summary strong {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
 }
 .week-attendance-summary span {
@@ -3412,5 +3412,24 @@ input[type="search"]::-webkit-search-decoration {
     height: 3px !important;
     margin: 0 2px !important;
     background: var(--border-2, #CBD2D6) !important;
+  }
+}
+
+/* ── CHECKIN DESKTOP/TABLET: section cards radius + spacing ─────────────
+   Áp dụng cho giao diện tablet/desktop của trang Điểm danh.
+   Mobile giữ nguyên theo các rule mobile hiện có. */
+@media (min-width: 768px) {
+  #pageCheckin .month-overview,
+  #pageCheckin .week-attendance {
+    border-radius: 16px !important;
+    overflow: hidden !important;
+  }
+
+  #pageCheckin .month-overview {
+    margin-bottom: 20px !important;
+  }
+
+  #pageCheckin .week-attendance {
+    margin-top: 0 !important;
   }
 }
