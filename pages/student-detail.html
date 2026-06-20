@@ -159,16 +159,14 @@ function bindEvents(ctx) {
   page.querySelector('[data-action="next-month"]')?.addEventListener('click', () => { monthOffset += 1; render(); });
 
   page.querySelector('[data-action="ai-week"]')?.addEventListener('click', () => {
-    const field = page.querySelector('[data-report-content="week"]');
-    const text = generateWeekSummary(st, weekSessions, `Tuần ${week.label}`, field?.value || '');
-    field.value = text;
-    field.focus();
+    const text = generateWeekSummary(st, weekSessions, `Tuần ${week.label}`);
+    page.querySelector('[data-report-content="week"]').value = text;
+    page.querySelector('[data-report-content="week"]').focus();
   });
   page.querySelector('[data-action="ai-month"]')?.addEventListener('click', () => {
-    const field = page.querySelector('[data-report-content="month"]');
-    const text = generateMonthSummary(st, monthSessions, weekReportsInMonth, month.label, field?.value || '');
-    field.value = text;
-    field.focus();
+    const text = generateMonthSummary(st, monthSessions, weekReportsInMonth, month.label);
+    page.querySelector('[data-report-content="month"]').value = text;
+    page.querySelector('[data-report-content="month"]').focus();
   });
   page.querySelector('[data-action="save-week-report"]')?.addEventListener('click', () => {
     saveReport(st, 'week', week.start, week.end, `Tuần ${week.label}`, valueOfReport('week'));
@@ -211,9 +209,9 @@ function summaryTemplate({ st, sessions, report, mode, label, weekReports = [] }
       <div class="ai-summary-head">
         <div class="summary-note-title"><span class="emoji" aria-hidden="true">✨</span> Nhận xét ${mode === 'week' ? 'tuần' : 'tháng'} gửi phụ huynh</div>
       </div>
-      <textarea class="ai-summary-textarea" data-report-content="${mode}" rows="7" placeholder="Nhập vài từ khóa để AI tạo nhận xét, ví dụ: Tiến bộ, hợp tác hơn, phát âm được dấu hỏi/dấu ngã...">${escapeHTML(draft)}</textarea>
+      <textarea class="ai-summary-textarea" data-report-content="${mode}" rows="7" placeholder="${hasSource ? 'Bấm AI tạo nhận xét hoặc tự nhập nội dung tổng hợp...' : 'Chưa có dữ liệu nhận xét để tổng hợp.'}">${escapeHTML(draft)}</textarea>
       <div class="ai-summary-actions">
-        <button class="btn btn-outline" data-action="ai-${mode}"><span class="emoji" aria-hidden="true">🤖</span> AI tạo nhận xét</button>
+        <button class="btn btn-outline" data-action="ai-${mode}" ${hasSource ? '' : 'disabled'}><span class="emoji" aria-hidden="true">🤖</span> AI tạo nhận xét</button>
         <button class="btn btn-primary" data-action="save-${mode}-report">Lưu nhận xét</button>
       </div>
     </div>`;
@@ -335,151 +333,33 @@ function valueOfReport(mode) {
   return page.querySelector(`[data-report-content="${mode}"]`)?.value.trim() || '';
 }
 
-function generateWeekSummary(st, sessions, label, teacherInput = '') {
-  const taught = sessions.filter(s => isAttendedSession(s));
+function generateWeekSummary(st, sessions, label) {
+  const taught = sessions.filter(s => s.status === 'taught' || s.status === 'makeup');
   const notes = collectNotes(sessions);
-  const keywords = parseTeacherKeywords(teacherInput);
-  const signals = analyzeParentNoteSignals([...notes, teacherInput].join(' '));
-  const totalSlots = taught.reduce((a, s) => a + actualSlots(s), 0);
+  if (!notes.length) return '';
+
   const parts = [];
-
-  parts.push(`${label}, ${st.name} đã tham gia ${formatNumber(taught.length)} buổi học với tổng ${formatNumber(totalSlots)} ca.`);
-
-  if (signals.hasProgress) {
-    parts.push(`${st.name} có một số tiến bộ tích cực so với những buổi trước. Bé bắt đầu chủ động hơn trong hoạt động học và có những thời điểm hợp tác tốt hơn với cô.`);
-  } else if (notes.length || keywords.length) {
-    parts.push(`Trong tuần này, bé tiếp tục được cô theo dõi và hỗ trợ trong các hoạt động can thiệp hằng buổi.`);
-  } else {
-    parts.push(`Trong tuần này, bé đang tiếp tục duy trì nề nếp học tập và làm quen với các hoạt động cùng cô.`);
-  }
-
-  if (signals.hasPronunciation) {
-    const pronunciationDetail = buildPronunciationDetail(keywords.join(', ') || teacherInput || notes.join(' '));
-    parts.push(`Về ngôn ngữ, bé đã có tín hiệu tốt khi luyện phát âm${pronunciationDetail}. Bé vẫn cần được luyện thêm để phát âm rõ và ổn định hơn.`);
-  }
-
-  if (signals.hasCooperation) {
-    parts.push(`Khả năng hợp tác của bé có cải thiện: bé biết lắng nghe hơn và có thể làm theo hướng dẫn khi được cô nhắc nhẹ nhàng, từng bước.`);
-  }
-
-  if (signals.hasAttention) {
-    parts.push(`Khả năng chú ý và tập trung của bé có chuyển biến tốt hơn ở một số hoạt động, tuy nhiên vẫn cần tiếp tục rèn để duy trì ổn định.`);
-  }
-
-  if (signals.hasBehaviorIssue) {
-    parts.push(`Bên cạnh đó, bé đôi lúc vẫn còn hiếu động, bướng hoặc chưa hợp tác ngay khi bắt đầu hoạt động, nên cô vẫn cần nhắc lại và hỗ trợ để bé quay lại nhiệm vụ.`);
-  }
-
-  if (signals.hasCommunication) {
-    parts.push(`Về giao tiếp, bé có thêm tín hiệu tích cực trong việc phản hồi và tương tác với cô, cần tiếp tục khuyến khích để bé tự tin hơn.`);
-  }
-
-  if (signals.hasSelfCare) {
-    parts.push(`Ở nhóm kỹ năng tự lập, bé đã có cơ hội luyện thêm các thao tác theo hướng dẫn và cần tiếp tục thực hành đều đặn để hình thành thói quen.`);
-  }
-
-  if (keywords.length && !signals.hasPronunciation && !signals.hasCooperation && !signals.hasAttention && !signals.hasBehaviorIssue && !signals.hasCommunication && !signals.hasSelfCare) {
-    parts.push(`Các điểm cô ghi nhận thêm trong tuần gồm: ${formatKeywordList(keywords)}. Đây là những nội dung cô sẽ tiếp tục quan sát và củng cố trong các buổi tới.`);
-  }
-
-  parts.push(`Tuần tới, cô sẽ tiếp tục duy trì những điểm bé đang có tiến bộ, đồng thời rèn thêm khả năng hợp tác, tập trung và điều chỉnh hành vi để bé ổn định hơn trong từng hoạt động.`);
-
-  return normalizeSummary(parts).join('\n\n');
+  parts.push(`Trong ${label.toLowerCase()}, ${st.name} đã học tổng ${formatNumber(taught.reduce((a, s) => a + actualSlots(s), 0))} ca.`);
+  parts.push(`Các ghi nhận trong tuần: ${joinNotes(notes)}.`);
+  parts.push(`Tuần tới, cô sẽ tiếp tục theo dõi khả năng hợp tác, tập trung và tiến bộ của bé trong từng hoạt động để điều chỉnh mục tiêu can thiệp phù hợp hơn.`);
+  return parts.join('\n');
 }
 
-function generateMonthSummary(st, sessions, weekReports, label, teacherInput = '') {
-  const taught = sessions.filter(s => isAttendedSession(s));
+function generateMonthSummary(st, sessions, weekReports, label) {
+  const taught = sessions.filter(s => s.status === 'taught' || s.status === 'makeup');
   const sourceTexts = weekReports.map(r => r.content).filter(Boolean);
   const notes = collectNotes(sessions);
-  const keywords = parseTeacherKeywords(teacherInput);
-  const signals = analyzeParentNoteSignals([...sourceTexts, ...notes, teacherInput].join(' '));
-  const totalSlots = taught.reduce((a, s) => a + actualSlots(s), 0);
   const parts = [];
-
-  parts.push(`Trong ${label.toLowerCase()}, ${st.name} đã tham gia ${formatNumber(taught.length)} buổi học với tổng ${formatNumber(totalSlots)} ca.`);
+  parts.push(`Trong ${label.toLowerCase()}, ${st.name} đã học tổng ${formatNumber(taught.reduce((a, s) => a + actualSlots(s), 0))} ca.`);
 
   if (sourceTexts.length) {
-    parts.push(`Dựa trên các nhận xét theo tuần, bé có sự thay đổi qua từng giai đoạn trong tháng. Cô ghi nhận bé đang dần làm quen và đáp ứng tốt hơn với một số hoạt động can thiệp.`);
-  } else if (notes.length || keywords.length) {
-    parts.push(`Qua các buổi học trong tháng, cô đã ghi nhận thêm một số biểu hiện và khả năng của bé để tiếp tục điều chỉnh mục tiêu hỗ trợ phù hợp.`);
-  } else {
-    parts.push(`Trong tháng này, bé tiếp tục duy trì quá trình học và được cô theo dõi ở các nhóm kỹ năng chính.`);
-  }
-
-  if (signals.hasProgress) {
-    parts.push(`Điểm tích cực là bé đã có tiến bộ ở một số thời điểm, biết hợp tác hơn và có tín hiệu tiếp thu tốt hơn so với giai đoạn đầu.`);
-  }
-  if (signals.hasPronunciation) {
-    const pronunciationDetail = buildPronunciationDetail(keywords.join(', ') || teacherInput || [...sourceTexts, ...notes].join(' '));
-    parts.push(`Về ngôn ngữ, bé có tín hiệu tốt khi luyện phát âm${pronunciationDetail}, tuy nhiên vẫn cần luyện lặp lại để rõ và ổn định hơn.`);
-  }
-  if (signals.hasBehaviorIssue) {
-    parts.push(`Bé vẫn còn những lúc hiếu động, bướng hoặc chưa hợp tác ổn định, vì vậy cô sẽ tiếp tục rèn nề nếp, khả năng chờ đợi và làm theo hướng dẫn.`);
-  }
-  if (keywords.length && !signals.hasProgress && !signals.hasPronunciation && !signals.hasBehaviorIssue) {
-    parts.push(`Các nội dung cô ghi nhận thêm gồm: ${formatKeywordList(keywords)}.`);
+    parts.push(`Dựa trên các nhận xét theo tuần, bé có sự thay đổi đáng chú ý qua từng giai đoạn: ${joinNotes(sourceTexts)}.`);
+  } else if (notes.length) {
+    parts.push(`Các ghi nhận trong tháng gồm: ${joinNotes(notes)}.`);
   }
 
   parts.push(`Trong tháng tới, cô sẽ tiếp tục duy trì các điểm mạnh đã hình thành, tăng dần yêu cầu theo khả năng của bé và phối hợp với gia đình để hỗ trợ bé ổn định hơn trong học tập, giao tiếp và sinh hoạt.`);
-
-  return normalizeSummary(parts).join('\n\n');
-}
-
-function isAttendedSession(session) {
-  return session.status === 'taught' || session.status === 'partial' || session.status === 'makeup' || session.type === 'makeup';
-}
-
-function parseTeacherKeywords(input = '') {
-  return [...new Set(String(input || '')
-    .split(/[;,\n•]+/)
-    .map(item => item.trim())
-    .filter(item => item && item.length <= 80))];
-}
-
-function analyzeParentNoteSignals(text = '') {
-  const lower = normalizeVietnamese(text);
-  return {
-    hasProgress: hasAny(lower, ['tien bo', 'tot hon', 'kha hon', 'co tien bo', 'on dinh hon', 'lam duoc', 'biet', 'co tin hieu tot']),
-    hasPronunciation: hasAny(lower, ['phat am', 'dau hoi', 'dau nga', 'noi', 'am', 'ngu am', 'bat chuoc am', 'nhai lai']),
-    hasCooperation: hasAny(lower, ['hop tac', 'nghe loi', 'vang loi', 'lam theo', 'phoi hop', 'ngoan hon']),
-    hasAttention: hasAny(lower, ['tap trung', 'chu y', 'ngoi lau hon', 'duy tri', 'chu dong nhin']),
-    hasBehaviorIssue: hasAny(lower, ['buong', 'nghich', 'chua hop tac', 'khong hop tac', 'hieu dong', 'an va', 'khoc', 'chong doi', 'mat tap trung']),
-    hasCommunication: hasAny(lower, ['giao tiep', 'tuong tac', 'phan hoi', 'goi ten', 'nhin mat', 'yeu cau', 'tra loi']),
-    hasSelfCare: hasAny(lower, ['tu lap', 'tu phuc vu', 'di ve sinh', 'an', 'mac ao', 'di giay', 'rua tay'])
-  };
-}
-
-function normalizeVietnamese(text = '') {
-  return String(text || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd');
-}
-
-function hasAny(text, words) {
-  return words.some(word => text.includes(word));
-}
-
-function buildPronunciationDetail(text = '') {
-  const lower = normalizeVietnamese(text);
-  const details = [];
-  if (lower.includes('dau hoi')) details.push('dấu hỏi');
-  if (lower.includes('dau nga')) details.push('dấu ngã');
-  if (!details.length) return '';
-  return `, đặc biệt với các tiếng có ${details.join(' và ')}`;
-}
-
-function formatKeywordList(items = []) {
-  if (!items.length) return '';
-  if (items.length === 1) return items[0];
-  return `${items.slice(0, -1).join(', ')} và ${items[items.length - 1]}`;
-}
-
-function normalizeSummary(parts = []) {
-  return parts
-    .map(part => String(part || '').replace(/\s+/g, ' ').trim())
-    .filter(Boolean);
+  return parts.join('\n');
 }
 
 function collectNotes(sessions) {

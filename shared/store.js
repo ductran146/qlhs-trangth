@@ -5,18 +5,15 @@
  */
 
 // Firebase/Auth are imported lazily in Store.init().
-// Firestore server is treated as the source of truth for the first paint.
-// Browser localStorage/IndexedDB is not used as initial data because Safari/Chrome
-// can keep stale cache per browser and make different devices show different data.
+// This keeps normal page rendering fast on mobile tab switches because
+// week-attendance/month-overview can draw from local cache before the
+// Firebase CDN SDK and Firestore snapshots finish loading.
 
 const AVATAR_COLORS = ['#796EFF','#2ECC71','#FFB800','#FF2323','#02AAD8','#9D70F9','#08D1A0','#FF784E'];
 const COLLECTION_KEYS = ['students', 'sessions', 'debts', 'reports'];
 const BOOTSTRAP_KEY = 'nkct_bootstrap_state';
-const PENDING_WRITES_KEY = 'nkct_pending_doc_writes';
-const PENDING_DELETES_KEY = 'nkct_pending_doc_deletes';
 const STATIC_DATA_FILE = 'data.json';
 const FIRESTORE_FALLBACK_TIMEOUT_MS = 5000;
-const REMOTE_FIRST_PAINT_TIMEOUT_MS = 3500;
 
 const DEFAULT = {
   students: [],
@@ -26,16 +23,12 @@ const DEFAULT = {
 };
 
 const _listeners = {};
-const _syncStatus = { auth: 'idle', firestore: 'idle', error: null, lastRemoteAt: null, source: 'empty-start' };
-const _pendingDocWrites = readPendingQueue(PENDING_WRITES_KEY);
-const _pendingDeletes = readPendingQueue(PENDING_DELETES_KEY);
-// Start from empty data and wait for Firestore.
-// This avoids showing stale browser cache before the server snapshot arrives.
-const _cache = Object.fromEntries(COLLECTION_KEYS.map(key => [key, structuredCloneSafe(DEFAULT[key] || [])]));
+const _syncStatus = { auth: 'idle', firestore: 'cache', error: null, lastRemoteAt: null, source: 'local-cache' };
+const _pendingDocWrites = [];
+const _pendingDeletes = [];
+const _cache = Object.fromEntries(COLLECTION_KEYS.map(key => [key, readLocalOrDefault(key)]));
 const _remoteIds = Object.fromEntries(COLLECTION_KEYS.map(key => [key, new Set()]));
 const _firstSnapshot = Object.fromEntries(COLLECTION_KEYS.map(key => [key, false]));
-const _optimisticDocs = buildOptimisticDocMaps(_pendingDocWrites);
-const _optimisticDeletes = buildOptimisticDeleteMaps(_pendingDeletes);
 let _initPromise = null;
 let _teacherId = null;
 let _unsubscribers = [];
@@ -44,20 +37,6 @@ let _firebaseApi = null;
 let _authApi = null;
 let _staticFallbackPromise = null;
 let _fallbackTimer = null;
-let _firstSnapshotWaiters = [];
-let _isFlushingPendingWrites = false;
-let _needsFlushAfterCurrent = false;
-
-// Keep pending write queues durable even if the teacher changes tab/page or presses F5
-// immediately after saving a student/session. The actual Firestore request may be
-// cancelled by the browser during navigation, but the queued operation will be
-// replayed on the next app boot.
-if (typeof window !== 'undefined') {
-  window.addEventListener('beforeunload', persistPendingQueues);
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') persistPendingQueues();
-  });
-}
 
 async function loadFirebaseRuntime() {
   if (_firebaseApi && _authApi) return { ..._firebaseApi, Auth: _authApi.Auth };
@@ -70,151 +49,16 @@ async function loadFirebaseRuntime() {
   return { ...firebase, Auth };
 }
 
-function readPendingQueue(storageKey) {
-  try {
-    const raw = localStorage.getItem(storageKey);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (_err) {
-    return [];
-  }
-}
-
-function persistPendingQueues() {
-  try { localStorage.setItem(PENDING_WRITES_KEY, JSON.stringify(_pendingDocWrites)); } catch (_err) {}
-  try { localStorage.setItem(PENDING_DELETES_KEY, JSON.stringify(_pendingDeletes)); } catch (_err) {}
-}
-
-function buildOptimisticDocMaps(queue) {
-  const maps = Object.fromEntries(COLLECTION_KEYS.map(key => [key, new Map()]));
-  for (const entry of queue || []) {
-    if (!entry?.key || !entry?.item?.id || !maps[entry.key]) continue;
-    maps[entry.key].set(String(entry.item.id), entry.item);
-  }
-  return maps;
-}
-
-function buildOptimisticDeleteMaps(queue) {
-  const maps = Object.fromEntries(COLLECTION_KEYS.map(key => [key, new Set()]));
-  for (const entry of queue || []) {
-    if (!entry?.key || !entry?.id || !maps[entry.key]) continue;
-    maps[entry.key].add(String(entry.id));
-  }
-  return maps;
-}
-
-function sameJson(a, b) {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
-
-function remoteMatchesExpected(remote, expected) {
-  if (!remote || !expected) return false;
-  const cleanExpected = cleanForFirestore(expected);
-  for (const [field, value] of Object.entries(cleanExpected)) {
-    if (!sameJson(remote[field], value)) return false;
-  }
-  return true;
-}
-
-function removeAckedPendingOps(key, remoteList, isServerSnapshot) {
-  if (!isServerSnapshot) return;
-  const remoteById = new Map((remoteList || []).map(item => [String(item.id), item]));
-  let changed = false;
-
-  for (let i = _pendingDocWrites.length - 1; i >= 0; i--) {
-    const entry = _pendingDocWrites[i];
-    if (entry?.key !== key || !entry?.item?.id) continue;
-    const id = String(entry.item.id);
-    const remote = remoteById.get(id);
-    if (remote && remoteMatchesExpected(remote, entry.item)) {
-      _pendingDocWrites.splice(i, 1);
-      _optimisticDocs[key]?.delete(id);
-      changed = true;
-    }
-  }
-
-  for (let i = _pendingDeletes.length - 1; i >= 0; i--) {
-    const entry = _pendingDeletes[i];
-    if (entry?.key !== key || !entry?.id) continue;
-    const id = String(entry.id);
-    if (!remoteById.has(id)) {
-      _pendingDeletes.splice(i, 1);
-      _optimisticDeletes[key]?.delete(id);
-      changed = true;
-    }
-  }
-
-  if (changed) persistPendingQueues();
-}
-
-function applyOptimisticOverlay(key, remoteList) {
-  const byId = new Map((remoteList || []).map(item => [String(item.id), item]));
-
-  const deleted = _optimisticDeletes[key];
-  if (deleted?.size) {
-    for (const id of deleted) byId.delete(String(id));
-  }
-
-  const docs = _optimisticDocs[key];
-  if (docs?.size) {
-    for (const [id, item] of docs.entries()) {
-      if (deleted?.has(id)) continue;
-      byId.set(String(id), item);
-    }
-  }
-
-  return Array.from(byId.values());
-}
-
-function queuePendingDocWrite(key, item) {
-  if (!item?.id) return;
-  const cleaned = cleanForFirestore(item);
-  const id = String(cleaned.id);
-
-  for (let i = _pendingDocWrites.length - 1; i >= 0; i--) {
-    const entry = _pendingDocWrites[i];
-    if (entry?.key === key && String(entry?.item?.id) === id) _pendingDocWrites.splice(i, 1);
-  }
-  for (let i = _pendingDeletes.length - 1; i >= 0; i--) {
-    const entry = _pendingDeletes[i];
-    if (entry?.key === key && String(entry?.id) === id) _pendingDeletes.splice(i, 1);
-  }
-
-  _pendingDocWrites.push({ key, item: cleaned, queuedAt: new Date().toISOString() });
-  _optimisticDocs[key]?.set(id, cleaned);
-  _optimisticDeletes[key]?.delete(id);
-  persistPendingQueues();
-}
-
-function queuePendingDelete(key, id) {
-  if (!id) return;
-  id = String(id);
-
-  for (let i = _pendingDocWrites.length - 1; i >= 0; i--) {
-    const entry = _pendingDocWrites[i];
-    if (entry?.key === key && String(entry?.item?.id) === id) _pendingDocWrites.splice(i, 1);
-  }
-  for (let i = _pendingDeletes.length - 1; i >= 0; i--) {
-    const entry = _pendingDeletes[i];
-    if (entry?.key === key && String(entry?.id) === id) _pendingDeletes.splice(i, 1);
-  }
-
-  _pendingDeletes.push({ key, id, queuedAt: new Date().toISOString() });
-  _optimisticDocs[key]?.delete(id);
-  _optimisticDeletes[key]?.add(id);
-  persistPendingQueues();
-}
-
 
 function readLocalOrDefault(key) {
-  // Kept only for manual/debug fallback. The normal app boot no longer reads
-  // localStorage before Firestore because old local cache caused data mismatch
-  // between Safari, Chrome, local and GitHub Pages.
   try {
     const raw = localStorage.getItem('nkct_' + key);
     if (raw) return JSON.parse(raw);
   } catch (_err) {}
 
+  // Fallback aggregate cache. This makes every page draw the last known data
+  // immediately after mobile tab/page navigation, even before Firebase Auth
+  // restores the session or Firestore returns the first snapshot.
   try {
     const boot = localStorage.getItem(BOOTSTRAP_KEY);
     if (boot) {
@@ -286,7 +130,7 @@ function startFirestoreFallbackTimer() {
   if (_fallbackTimer) clearTimeout(_fallbackTimer);
   _fallbackTimer = setTimeout(() => {
     const hasSnapshot = COLLECTION_KEYS.some(key => _firstSnapshot[key] === true);
-    if (!_firebaseReady || hasSnapshot) return;
+    if (!_firebaseReady || hasSnapshot || hasAnyCachedData()) return;
     loadStaticFallback('firestore-timeout');
   }, FIRESTORE_FALLBACK_TIMEOUT_MS);
 }
@@ -330,23 +174,6 @@ function allCollectionsHaveSnapshot() {
   return COLLECTION_KEYS.every(key => _firstSnapshot[key] === true);
 }
 
-function resolveFirstSnapshotWaiters() {
-  if (!allCollectionsHaveSnapshot()) return;
-  const waiters = _firstSnapshotWaiters.splice(0);
-  waiters.forEach(resolve => resolve(true));
-}
-
-function waitForFirstSnapshots(timeoutMs = REMOTE_FIRST_PAINT_TIMEOUT_MS) {
-  if (allCollectionsHaveSnapshot()) return Promise.resolve(true);
-  return new Promise(resolve => {
-    const timer = setTimeout(() => resolve(false), timeoutMs);
-    _firstSnapshotWaiters.push((value) => {
-      clearTimeout(timer);
-      resolve(value);
-    });
-  });
-}
-
 function updateFirestoreStatusFromSnapshot(snapshot) {
   stopFirestoreFallbackTimerIfReady();
   _syncStatus.firestore = allCollectionsHaveSnapshot() ? 'synced' : 'syncing';
@@ -358,38 +185,47 @@ function updateFirestoreStatusFromSnapshot(snapshot) {
 
 async function writeItemToFirestore(key, item) {
   if (!item?.id) return;
-  queuePendingDocWrite(key, item);
-  flushPendingWrites().catch(err => setSyncError('[store] flush failed', err));
+  if (!_firebaseReady || !_teacherId || !_firebaseApi) {
+    _pendingDocWrites.push({ key, item: cleanForFirestore(item) });
+    return;
+  }
+  await _firebaseApi.setDoc(teacherDoc(key, item.id), cleanForFirestore(item), { merge: false })
+    .catch((err) => setSyncError(`[store] Write ${key}/${item.id} failed`, err));
 }
 
 async function deleteItemFromFirestore(key, id) {
   if (!id) return;
-  queuePendingDelete(key, id);
-  await flushPendingWrites();
+  if (!_firebaseReady || !_teacherId || !_firebaseApi) {
+    _pendingDeletes.push({ key, id: String(id) });
+    return;
+  }
+  await _firebaseApi.deleteDoc(teacherDoc(key, id))
+    .catch((err) => setSyncError(`[store] Delete ${key}/${id} failed`, err));
 }
 
 async function syncCollectionToFirestore(key, value, options = {}) {
-  // Queue every collection-level write before attempting Firestore.
-  // Some UI flows call Store.set('students', nextList) instead of upsertStudent().
-  // If the teacher switches page/F5 immediately, direct setDoc() can be cancelled;
-  // a persisted pending queue makes the write replay on next boot.
-  const list = Array.isArray(value) ? value : [];
+  // Firestore is the source of truth. Collection replacement is only allowed
+  // after the first remote snapshot for that collection has been received.
+  // This prevents stale browser localStorage from overwriting/deleting newer
+  // Firestore data when Safari/Chrome open the app with different caches.
+  if (!_firebaseReady || !_teacherId || !_firebaseApi) return;
   const allowDeletes = options.allowDeletes === true && _firstSnapshot[key] === true;
-  const nextIds = new Set(list.map(item => String(item?.id || '')).filter(Boolean));
+  const list = Array.isArray(value) ? value : [];
+  const nextIds = new Set(list.map(item => String(item.id)).filter(Boolean));
   const previousIds = _remoteIds[key] || new Set();
 
+  const writes = [];
   for (const item of list) {
     if (!item?.id) continue;
-    queuePendingDocWrite(key, item);
+    writes.push(_firebaseApi.setDoc(teacherDoc(key, item.id), cleanForFirestore(item), { merge: false }));
   }
-
   if (allowDeletes) {
     for (const id of previousIds) {
-      if (!nextIds.has(id)) queuePendingDelete(key, id);
+      if (!nextIds.has(id)) writes.push(_firebaseApi.deleteDoc(teacherDoc(key, id)));
     }
   }
 
-  await flushPendingWrites();
+  await Promise.all(writes).catch((err) => setSyncError(`[store] Sync ${key} failed`, err));
 }
 
 function setSyncError(message, err, options = {}) {
@@ -402,59 +238,13 @@ function setSyncError(message, err, options = {}) {
 
 async function flushPendingWrites() {
   if (!_firebaseReady || !_teacherId || !_firebaseApi) return;
-  if (_isFlushingPendingWrites) {
-    _needsFlushAfterCurrent = true;
-    return;
+  const docWrites = _pendingDocWrites.splice(0);
+  const deletes = _pendingDeletes.splice(0);
+  for (const item of docWrites) {
+    await writeItemToFirestore(item.key, item.item);
   }
-  _isFlushingPendingWrites = true;
-  _needsFlushAfterCurrent = false;
-  try {
-    let maxPasses = 5;
-    while ((_pendingDocWrites.length > 0 || _pendingDeletes.length > 0) && maxPasses-- > 0) {
-      const writesToProcess  = [..._pendingDocWrites];
-      const deletesToProcess = [..._pendingDeletes];
-      let sentCount = 0;
-
-      for (const entry of writesToProcess) {
-        if (!entry?.item?.id) continue;
-        try {
-          await _firebaseApi.setDoc(
-            teacherDoc(entry.key, entry.item.id),
-            cleanForFirestore(entry.item),
-            { merge: false }
-          );
-          const idx = _pendingDocWrites.findIndex(
-            e => e?.key === entry.key && String(e?.item?.id) === String(entry.item.id)
-          );
-          if (idx > -1) { _pendingDocWrites.splice(idx, 1); sentCount++; }
-          _optimisticDocs[entry.key]?.delete(String(entry.item.id));
-        } catch (err) {
-          setSyncError(`[store] Write ${entry.key}/${entry.item.id} failed`, err);
-        }
-      }
-
-      for (const entry of deletesToProcess) {
-        if (!entry?.id) continue;
-        try {
-          await _firebaseApi.deleteDoc(teacherDoc(entry.key, entry.id));
-          const idx = _pendingDeletes.findIndex(
-            e => e?.key === entry.key && String(e?.id) === String(entry.id)
-          );
-          if (idx > -1) { _pendingDeletes.splice(idx, 1); sentCount++; }
-          _optimisticDeletes[entry.key]?.delete(String(entry.id));
-        } catch (err) {
-          setSyncError(`[store] Delete ${entry.key}/${entry.id} failed`, err);
-        }
-      }
-      if (sentCount === 0) break;
-    }
-    persistPendingQueues();
-  } finally {
-    _isFlushingPendingWrites = false;
-    if (_needsFlushAfterCurrent && (_pendingDocWrites.length + _pendingDeletes.length > 0)) {
-      _needsFlushAfterCurrent = false;
-      setTimeout(() => flushPendingWrites(), 0);
-    }
+  for (const item of deletes) {
+    await deleteItemFromFirestore(item.key, item.id);
   }
 }
 
@@ -472,8 +262,7 @@ const Store = {
 
     _initPromise = (async () => {
       _syncStatus.auth = 'checking';
-      _syncStatus.firestore = 'connecting';
-      _syncStatus.source = 'empty-start';
+      _syncStatus.firestore = 'cache';
       Store.emit('sync', Store.getSyncStatus());
       const { Auth, onSnapshot } = await loadFirebaseRuntime();
       const authUser = await Auth.ready();
@@ -492,11 +281,6 @@ const Store = {
 
       _unsubscribers.forEach(unsub => { try { unsub(); } catch (_err) {} });
       _unsubscribers = [];
-      COLLECTION_KEYS.forEach(key => {
-        _firstSnapshot[key] = false;
-        _remoteIds[key] = new Set();
-      });
-      _firstSnapshotWaiters = [];
       _firebaseReady = true;
       _syncStatus.auth = 'signed_in';
       _syncStatus.firestore = 'syncing';
@@ -504,37 +288,24 @@ const Store = {
       Store.emit('sync', Store.getSyncStatus());
       startFirestoreFallbackTimer();
 
-      // Attach realtime listeners and wait briefly for the first Firestore result.
-      // This prioritizes correct sync across Safari/Chrome over showing stale
-      // local cache immediately. If the network is slow, components still render
-      // after REMOTE_FIRST_PAINT_TIMEOUT_MS and will update when snapshots arrive.
+      // Attach realtime listeners, but do NOT await the first snapshots.
+      // On iPhone/Safari page navigation can re-download Firebase SDK + wait for
+      // Firestore. Waiting here made the Checkin tab appear blank for 5–30s.
       COLLECTION_KEYS.forEach(key => {
         const unsubscribe = onSnapshot(teacherCollection(key), { includeMetadataChanges: true }, (snapshot) => {
-          const rawRemoteList = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-          const isServerSnapshot = !snapshot.metadata.fromCache;
-          removeAckedPendingOps(key, rawRemoteList, isServerSnapshot);
-          const remoteList = applyOptimisticOverlay(key, rawRemoteList);
-          const remoteIds = new Set(rawRemoteList.map(item => String(item.id)));
+          const remoteList = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+          const remoteIds = new Set(remoteList.map(item => String(item.id)));
           _remoteIds[key] = remoteIds;
 
-          // Firestore is the source of truth. Even when the list is empty,
-          // overwrite browser cache instead of merging localStorage/static data.
-          // Pending local writes are overlaid until a server snapshot confirms them,
-          // so a quick refresh after adding a student will retry and not lose data.
+          // Firestore is the source of truth. Even when the remote list is
+          // empty, overwrite browser cache instead of uploading localStorage.
+          // Snapshot may arrive from Firestore's IndexedDB cache first, then
+          // from server. Both are safer than legacy app localStorage because
+          // they belong to Firestore sync, not old JSON/import data.
           _firstSnapshot[key] = true;
           updateFirestoreStatusFromSnapshot(snapshot);
           setLocalCache(key, remoteList, true, snapshot.metadata.fromCache ? 'firestore-cache' : 'firestore-server');
           Store.emit('sync', Store.getSyncStatus());
-          resolveFirstSnapshotWaiters();
-
-          if (typeof window !== 'undefined' && window.__QLHS_DEBUG_SYNC__) {
-            console.log('[QLHS sync]', key, {
-              teacherId: _teacherId,
-              source: snapshot.metadata.fromCache ? 'firestore-cache' : 'firestore-server',
-              size: remoteList.length,
-              names: remoteList.map(item => item.name || item.studentName || item.id)
-            });
-          }
 
           // Flush pending writes only after the first server-backed snapshot.
           // This avoids stale browser cache being written back before the
@@ -546,9 +317,6 @@ const Store = {
         _unsubscribers.push(unsubscribe);
       });
 
-      await flushPendingWrites();
-      await waitForFirstSnapshots();
-      Store.emit('sync', Store.getSyncStatus());
       return true;
     })();
 
@@ -570,20 +338,11 @@ const Store = {
 
   set(key, value, options = {}) {
     setLocalCache(key, value, true, 'optimistic-local');
-    // Persist the intended write immediately. This covers add/edit flows that
-    // replace a whole collection and then navigate away before Firestore returns.
     syncCollectionToFirestore(key, value, { allowDeletes: options.allowDeletes === true || _firstSnapshot[key] === true });
   },
 
   getSyncStatus() {
-    return {
-      ..._syncStatus,
-      teacherId: _teacherId,
-      firebaseReady: _firebaseReady,
-      firstSnapshot: { ..._firstSnapshot },
-      pendingWrites: _pendingDocWrites.length,
-      pendingDeletes: _pendingDeletes.length
-    };
+    return { ..._syncStatus, teacherId: _teacherId, firebaseReady: _firebaseReady };
   },
 
   async loadStaticFallback() {

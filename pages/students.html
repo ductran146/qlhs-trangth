@@ -332,16 +332,7 @@ function render() {
 Store.subscribe('students', render);
 Store.subscribe('sessions', render);
 Store.subscribe('debts', render);
-
-// FIX: không render ngay — đợi Store.init() (đã chạy trong components-loader)
-// hoàn tất Firestore first snapshot trước khi vẽ danh sách lần đầu.
-// Store.init() là idempotent: gọi nhiều lần chỉ chạy 1 lần thật.
-// Nếu loader đã init xong thì promise resolve ngay lập tức.
-(async () => {
-  const { Store: S } = await import('../shared/store.js');
-  await S.init();
-  render();
-})();
+render();
 
 
 function getFilteredStudents(students) {
