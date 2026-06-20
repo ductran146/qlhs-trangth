@@ -21,6 +21,7 @@ const STATUS_META = {
   pending: { label: 'Chưa chấm', short: 'Chưa', tone: 'pending' },
   off:     { label: 'Không lịch', short: 'Không', tone: 'off' },
   prestart:{ label: 'Chưa học', short: 'Chưa học', tone: 'prestart' },
+  future: { label: 'Sắp tới', short: 'Tới', tone: 'future' },
   taught:  { label: 'Đã học đủ', short: 'Đủ', tone: 'taught' },
   partial: { label: 'Học thiếu', short: 'Thiếu', tone: 'partial' },
   absent:  { label: 'Nghỉ', short: 'Nghỉ', tone: 'absent' },
@@ -42,16 +43,21 @@ export function render(el) {
   }
 }
 
+function getAttendanceStudents(students = []) {
+  return students.filter(st => (st.status || 'active') !== 'inactive');
+}
+
 function draw(el) {
   const week = getWeekRange(weekOffset);
   const dates = getWeekDates(week.start);
-  const students = Store.get('students');
+  const allStudents = Store.get('students');
+  const students = getAttendanceStudents(allStudents);
   const sessions = Store.get('sessions');
   const allDebts = typeof Store.reconcileDebts === 'function' ? Store.reconcileDebts() : Store.get('debts');
-  const debts = allDebts.filter(d => !d.done);
+  const debts = allDebts.filter(d => !d.done && students.some(st => st.id === d.studentId));
 
   const cells = buildCells(students, dates, sessions);
-  const scheduledCells = cells.filter(c => c.scheduled);
+  const scheduledCells = cells.filter(c => c.scheduled && !c.preStart && !isFutureDate(c.date.str));
   const pendingCount = scheduledCells.filter(c => !c.session?.status).length;
   const taughtCount = cells.filter(c => isAttended(c.session)).length;
   const actualSlots = cells.reduce((sum, c) => sum + getActualSlots(c.session), 0);
@@ -195,6 +201,11 @@ function getCellView(cell) {
   }
   const future = isFutureDate(cell.date.str);
   const sess = future ? null : cell.session;
+  if (future) {
+    return cell.scheduled
+      ? { ...STATUS_META.future, meta: 'Chưa đến ngày', mobileMeta: '' }
+      : { ...STATUS_META.off, meta: 'Không lịch', mobileMeta: '' };
+  }
   if (!sess?.status) {
     return cell.scheduled ? { ...STATUS_META.pending, meta: '', mobileMeta: '' } : { ...STATUS_META.off, meta: 'Không lịch', mobileMeta: '' };
   }
@@ -569,7 +580,7 @@ function rollbackMakeupAllocations(existing) {
 }
 
 function addManualSession(root, dates) {
-  const students = Store.get('students');
+  const students = getAttendanceStudents(Store.get('students'));
   const list = students.map(s => `${s.id}: ${s.name}`).join('\n');
   const sel = prompt('Nhập ID hoặc tên học sinh:\n' + list);
   if (!sel) return;
@@ -690,8 +701,8 @@ function emptyTemplate() {
   return `
     <div class="empty-state">
       <div class="icon"><span class="empty-emoji emoji" aria-hidden="true">📅</span></div>
-      <div class="title">Chưa có học sinh</div>
-      <div class="sub">Thêm học sinh trước khi chấm công tuần</div>
+      <div class="title">Chưa có học sinh đang học</div>
+      <div class="sub">Học sinh đã nghỉ sẽ không hiển thị trong phần chấm công tuần</div>
     </div>`;
 }
 

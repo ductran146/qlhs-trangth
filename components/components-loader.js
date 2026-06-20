@@ -36,23 +36,21 @@ function safeText(value) {
 }
 
 function renderTopbarSkeleton(el, dataset = {}) {
-  const title = dataset.title || 'Nhật ký can thiệp';
-  const dt = new Date();
-  const date = dt.toLocaleDateString('vi-VN', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'numeric'
-  });
-
+  // Keep the fast shell identical to the real topbar component.
+  // Do not use dataset.title here; otherwise the header flashes the page title
+  // before components/topbar.js hydrates it back to the fixed app brand.
   el.innerHTML = `
     <header class="topbar" data-fast-shell="true">
       <div class="topbar-inner">
         <div class="topbar-brand">
           <div class="topbar-icon emoji" aria-hidden="true">🌱</div>
-          <span class="topbar-title">${safeText(title)}</span>
+          <span class="topbar-title" aria-label="Cô Trang can thiệp">
+            <span class="topbar-title-main">Cô Trang</span>
+            <span class="topbar-title-sub">Can thiệp</span>
+          </span>
         </div>
         <div class="topbar-right">
-          <span class="topbar-date">${safeText(date)}</span>
+          <button class="topbar-logout-btn" id="topbarLogoutBtn" type="button">Đăng xuất</button>
         </div>
       </div>
     </header>`;
