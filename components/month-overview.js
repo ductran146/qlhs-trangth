@@ -16,9 +16,10 @@ let lastRows = [];
 
 export function render(el) {
   const students = Store.get('students');
-  const sessions = Store.get('sessions');
+  const studentIds = new Set(students.map(s => String(s.id)));
+  const sessions = Store.get('sessions').filter(s => studentIds.has(String(s.studentId)));
   const allDebts = typeof Store.reconcileDebts === 'function' ? Store.reconcileDebts() : Store.get('debts');
-  const debts = allDebts.filter(d => !d.done);
+  const debts = allDebts.filter(d => studentIds.has(String(d.studentId)) && !d.done);
 
   const now = new Date();
   const today = todayStr();
@@ -31,9 +32,6 @@ export function render(el) {
   const taught = monthSessions.filter(isTaughtOrMakeup);
   const absentOrBusy = monthSessions.filter(s => s.status === 'absent' || s.status === 'busy');
 
-  lastRows = students.map(st => buildStudentRow(st, sessions, debts, start, today, year, month));
-  const totalPendingSlots = lastRows.reduce((sum, row) => sum + Number(row.pendingSlots || 0), 0);
-  const absentBusySlots = absentOrBusy.reduce((sum, s) => sum + plannedSlots(s), 0);
   const totalSlots = taught.reduce((sum, s) => sum + actualSlots(s), 0);
   const totalIncome = taught.reduce((sum, sess) => {
     const st = students.find(s => s.id === sess.studentId);
@@ -42,10 +40,10 @@ export function render(el) {
   const debtSlots = debts.reduce((sum, d) => sum + Number(d.slots || 0), 0);
   const activeStudentCount = students.length;
 
-
+  lastRows = students.map(st => buildStudentRow(st, sessions, debts, start, today, year, month));
   const priorityRows = [...lastRows]
     .sort((a, b) => {
-      const score = row => (row.debtSlots * 100) + (row.pendingSlots * 10) - row.taughtSlots;
+      const score = row => (row.debtSlots * 100) + (row.pendingSlots * 10) - row.taughtCount;
       return score(b) - score(a);
     });
 
@@ -64,13 +62,13 @@ export function render(el) {
           <div class="month-stat-value">${activeStudentCount}</div>
           <div class="month-stat-label">Bé đang dạy</div>
         </div>
+        <div class="month-stat-card blue">
+          <div class="month-stat-value">${taught.length}</div>
+          <div class="month-stat-label">Buổi đã dạy</div>
+        </div>
         <div class="month-stat-card green">
           <div class="month-stat-value">${formatNumber(totalSlots)}</div>
-          <div class="month-stat-label">Ca đã học</div>
-        </div>
-        <div class="month-stat-card blue">
-          <div class="month-stat-value">${formatNumber(totalPendingSlots)}</div>
-          <div class="month-stat-label">Ca chưa chấm</div>
+          <div class="month-stat-label">Tổng số ca</div>
         </div>
         <div class="month-stat-card red">
           <div class="month-stat-value">${formatNumber(debtSlots)}</div>
@@ -85,7 +83,7 @@ export function render(el) {
       <div class="month-student-panel">
         <div class="month-student-title">
           <span>Tình trạng từng học sinh</span>
-          <small>${formatNumber(absentBusySlots)} ca nghỉ/bận</small>
+          <small>${absentOrBusy.length} buổi nghỉ/bận trong tháng</small>
         </div>
         ${priorityRows.length ? priorityRows.map(rowTemplate).join('') : `
           <div class="text-muted fs-13" style="padding:10px 0;text-align:center">Chưa có học sinh</div>
@@ -123,7 +121,7 @@ export function render(el) {
           <button type="button" class="attendance-modal-close" data-action="close-attendance" aria-label="Đóng"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M15 5L5 15M5 5L15 15" stroke="#454B50" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         </div>
         <div class="attendance-section">
-          <div class="attendance-label">Trạng thái ca học</div>
+          <div class="attendance-label">Trạng thái buổi học</div>
           <div class="attendance-status-grid">
             <button type="button" class="attendance-status-choice active" data-status="taught">Đã học đủ</button>
             <button type="button" class="attendance-status-choice" data-status="partial">Học thiếu</button>
@@ -170,7 +168,7 @@ function buildStudentRow(st, sessions, debts, start, today, year, month) {
   return {
     student: st,
     expected: expectedSlots,
-
+    taughtCount: taughtSessions.length,
     taughtSlots,
     pendingSlots,
     pendingItems,
@@ -323,10 +321,10 @@ function bindPendingDialog(root) {
     } else if (currentStatus === 'makeup') {
       if (currentSlots <= 0) currentSlots = planned;
       slotLabel.textContent = 'Số ca dạy bù';
-      hint.textContent = 'Ca bù sẽ được trừ vào các ca thiếu cũ nhất trước.';
+      hint.textContent = 'Ca bù sẽ được trừ vào các buổi thiếu cũ nhất trước.';
     } else if (currentStatus === 'absent') {
       currentSlots = 0;
-      hint.textContent = `Ca này nghỉ, app tạo nợ ${formatNumber(planned)} ca.`;
+      hint.textContent = `Buổi này nghỉ, app tạo nợ ${formatNumber(planned)} ca.`;
     } else if (currentStatus === 'busy') {
       currentSlots = 0;
       hint.textContent = `Cô bận, app tạo nợ ${formatNumber(planned)} ca.`;
@@ -469,10 +467,6 @@ function isTaughtOrMakeup(session) {
 
 function actualSlots(session) {
   return Number(session?.actualSlots ?? session?.duration ?? 0);
-}
-
-function plannedSlots(session) {
-  return Number(session?.plannedSlots ?? session?.debtSlots ?? session?.duration ?? 0);
 }
 
 function countScheduledSlots(student, year, month, startDate, today) {

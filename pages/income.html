@@ -55,10 +55,11 @@ function render() {
   const mLabel = `Tháng ${month+1}/${year}`;
 
   const students = Store.get('students');
-  const taught   = Store.get('sessions')
-    .filter(s => s.status === 'taught' && s.date >= mStart && s.date <= mEnd);
-  const absent   = Store.get('sessions')
-    .filter(s => s.status === 'absent' && s.date >= mStart && s.date <= mEnd);
+  const studentIds = new Set(students.map(s => String(s.id)));
+  const monthSessions = Store.get('sessions')
+    .filter(s => studentIds.has(String(s.studentId)) && s.date >= mStart && s.date <= mEnd);
+  const taught   = monthSessions.filter(s => s.status === 'taught');
+  const absent   = monthSessions.filter(s => s.status === 'absent');
 
   let total = 0;
   const byStudent = {};
@@ -74,12 +75,14 @@ function render() {
   }
 
   const entries  = Object.values(byStudent);
-  const allDebts = Store.get('debts').filter(d => !d.done);
+  const allDebts = Store.get('debts')
+    .filter(d => studentIds.has(String(d.studentId)) && !d.done);
 
   page.innerHTML = `
     <div class="page-header">
       <div>
         <div class="page-title">Thu nhập</div>
+        <div class="page-sub">${mLabel}</div>
       </div>
     </div>
 
