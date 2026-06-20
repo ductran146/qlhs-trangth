@@ -46,7 +46,6 @@ let _staticFallbackPromise = null;
 let _fallbackTimer = null;
 let _firstSnapshotWaiters = [];
 let _isFlushingPendingWrites = false;
-let _needsFlushAfterCurrent = false;
 
 // Keep pending write queues durable even if the teacher changes tab/page or presses F5
 // immediately after saving a student/session. The actual Firestore request may be
@@ -359,9 +358,7 @@ function updateFirestoreStatusFromSnapshot(snapshot) {
 async function writeItemToFirestore(key, item) {
   if (!item?.id) return;
   queuePendingDocWrite(key, item);
-  // flushPendingWrites tự xử lý lock và retry — không cần await ở đây
-  // để không block UI khi Firestore chậm
-  flushPendingWrites().catch(err => setSyncError('[store] writeItemToFirestore flush failed', err));
+  await flushPendingWrites();
 }
 
 async function deleteItemFromFirestore(key, id) {
@@ -403,66 +400,40 @@ function setSyncError(message, err, options = {}) {
 }
 
 async function flushPendingWrites() {
-  if (!_firebaseReady || !_teacherId || !_firebaseApi) return;
-  // Nếu đang flush: đánh dấu cần chạy lại sau khi xong (không skip entry mới)
-  if (_isFlushingPendingWrites) {
-    _needsFlushAfterCurrent = true;
-    return;
-  }
+  if (!_firebaseReady || !_teacherId || !_firebaseApi || _isFlushingPendingWrites) return;
   _isFlushingPendingWrites = true;
-  _needsFlushAfterCurrent = false;
   try {
-    let maxPasses = 5; // tránh vòng lặp vô hạn nếu Firestore lỗi liên tục
-    while ((_pendingDocWrites.length > 0 || _pendingDeletes.length > 0) && maxPasses-- > 0) {
-      const writesToProcess  = [..._pendingDocWrites];
-      const deletesToProcess = [..._pendingDeletes];
-      let sentCount = 0;
-
-      for (const entry of writesToProcess) {
-        if (!entry?.item?.id) continue;
-        try {
-          await _firebaseApi.setDoc(
-            teacherDoc(entry.key, entry.item.id),
-            cleanForFirestore(entry.item),
-            { merge: false }
-          );
-          // Xóa ngay sau khi setDoc resolve — không chờ onSnapshot
-          const idx = _pendingDocWrites.findIndex(
-            e => e?.key === entry.key && String(e?.item?.id) === String(entry.item.id)
-          );
-          if (idx > -1) { _pendingDocWrites.splice(idx, 1); sentCount++; }
-          _optimisticDocs[entry.key]?.delete(String(entry.item.id));
-        } catch (err) {
-          setSyncError(`[store] Write ${entry.key}/${entry.item.id} failed`, err);
-          // Giữ entry trong queue để retry sau
-        }
+    // Snapshot copy để tránh mutate trong khi đang iterate
+    for (const entry of [..._pendingDocWrites]) {
+      if (!entry?.item?.id) continue;
+      try {
+        await _firebaseApi.setDoc(teacherDoc(entry.key, entry.item.id), cleanForFirestore(entry.item), { merge: false });
+        // FIX: xóa khỏi queue ngay sau khi setDoc thành công
+        // Không chờ onSnapshot confirm — tránh trường hợp người dùng F5 ngay sau khi
+        // setDoc xong nhưng snapshot chưa về, entry vẫn còn trong queue và bị replay sai.
+        const idx = _pendingDocWrites.findIndex(e => e?.key === entry.key && String(e?.item?.id) === String(entry.item.id));
+        if (idx > -1) _pendingDocWrites.splice(idx, 1);
+        _optimisticDocs[entry.key]?.delete(String(entry.item.id));
+      } catch (err) {
+        setSyncError(`[store] Write ${entry.key}/${entry.item.id} failed`, err);
       }
-
-      for (const entry of deletesToProcess) {
-        if (!entry?.id) continue;
-        try {
-          await _firebaseApi.deleteDoc(teacherDoc(entry.key, entry.id));
-          const idx = _pendingDeletes.findIndex(
-            e => e?.key === entry.key && String(e?.id) === String(entry.id)
-          );
-          if (idx > -1) { _pendingDeletes.splice(idx, 1); sentCount++; }
-          _optimisticDeletes[entry.key]?.delete(String(entry.id));
-        } catch (err) {
-          setSyncError(`[store] Delete ${entry.key}/${entry.id} failed`, err);
-        }
-      }
-
-      // Nếu không có gì được gửi thành công (tất cả lỗi) → dừng để tránh loop
-      if (sentCount === 0) break;
     }
+    for (const entry of [..._pendingDeletes]) {
+      if (!entry?.id) continue;
+      try {
+        await _firebaseApi.deleteDoc(teacherDoc(entry.key, entry.id));
+        // FIX: xóa khỏi queue ngay sau khi deleteDoc thành công
+        const idx = _pendingDeletes.findIndex(e => e?.key === entry.key && String(e?.id) === String(entry.id));
+        if (idx > -1) _pendingDeletes.splice(idx, 1);
+        _optimisticDeletes[entry.key]?.delete(String(entry.id));
+      } catch (err) {
+        setSyncError(`[store] Delete ${entry.key}/${entry.id} failed`, err);
+      }
+    }
+    // Persist queue sau mỗi lần flush để beforeunload lưu trạng thái mới nhất
     persistPendingQueues();
   } finally {
     _isFlushingPendingWrites = false;
-    // Entry mới được thêm trong khi đang flush → flush lại ngay
-    if (_needsFlushAfterCurrent && (_pendingDocWrites.length + _pendingDeletes.length > 0)) {
-      _needsFlushAfterCurrent = false;
-      setTimeout(() => flushPendingWrites(), 0);
-    }
   }
 }
 

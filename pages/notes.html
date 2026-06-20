@@ -203,7 +203,12 @@ Store.subscribe('students', render);
 Store.subscribe('sessions', render);
 Store.subscribe('debts', render);
 Store.subscribe('*', render);
-render();
+
+(async () => {
+  const { Store: S } = await import('../shared/store.js');
+  await S.init();
+  render();
+})();
 </script>
 
 </body>
