@@ -406,7 +406,6 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 12px;
 }
 .week-attendance-summary {
   display: flex;
@@ -1341,7 +1340,7 @@
   border-radius: var(--r-lg);
 }
 .week-calendar-card .week-mobile-student {
-  padding: 16px;
+  padding: 8px 12px;
 }
 .week-calendar-grid {
   display: grid;
@@ -3297,8 +3296,8 @@ input[type="search"]::-webkit-search-decoration {
     position: sticky !important;
     top: 64px !important;
     z-index: 39 !important;
-    margin: 0 -20px 12px !important;
-    padding: 16px 20px 12px !important;
+    margin: 0 -16px 16px !important;
+    padding: 0px 16px 12px !important;
     background: var(--surface, #FFFFFF) !important;
     border-bottom: 1px solid var(--border, #DFE3E6) !important;
     box-shadow: 0 8px 20px rgba(16, 16, 19, .06) !important;
@@ -3392,7 +3391,6 @@ input[type="search"]::-webkit-search-decoration {
     justify-content: flex-end !important;
     gap: 6px !important;
     padding: 0 !important;
-    margin: 0 0 12px 0 !important;
     color: var(--ink-3, #8C9396) !important;
     font-size: 12px !important;
     line-height: 1.35 !important;
@@ -3497,5 +3495,62 @@ input[type="search"]::-webkit-search-decoration {
   #pageIncome > .section-label,
   #pageIncome .section-label {
     font-size: var(--qlhs-box-title-desktop-size, 16px) !important;
+  }
+}
+
+/* ── CHECKIN: hide estimated income card + desktop/tablet meta style ─────────────
+   1) Bỏ box "Thu nhập tạm tính" trong Tổng quan tháng này trên mọi giao diện.
+   2) Desktop/tablet: style week-attendance-meta theo text phụ của overview. */
+#pageCheckin .month-stat-grid .month-stat-card:last-child {
+  display: none !important;
+}
+
+@media (min-width: 640px) {
+  #pageCheckin .month-stat-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (min-width: 768px) {
+  #pageCheckin .week-attendance-meta {
+    justify-content: flex-end !important;
+    padding: 0 !important;
+    margin: 0 0 20px !important;
+    color: var(--ink-3) !important;
+    font-size: 12px !important;
+    line-height: 1.35 !important;
+    font-weight: 400 !important;
+    text-align: center !important;
+  }
+
+  #pageCheckin .week-attendance-meta span {
+    color: var(--ink-3) !important;
+    font-size: 12px !important;
+    line-height: 1.35 !important;
+    font-weight: 400 !important;
+  }
+
+  #pageCheckin .week-attendance-meta-dot {
+    background: var(--border-2, #CBD2D6) !important;
+  }
+}
+
+/* ── NOTES + INCOME MOBILE ONLY: page padding 16px ─────────────
+   Chỉ áp dụng cho giao diện mobile. Desktop và tablet giữ nguyên. */
+@media (max-width: 767px) {
+  #pageNotes,
+  #pageIncome {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    overflow-x: hidden !important;
+  }
+
+  #pageNotes > *,
+  #pageIncome > * {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
   }
 }
