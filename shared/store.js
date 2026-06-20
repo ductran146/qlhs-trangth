@@ -359,9 +359,7 @@ function updateFirestoreStatusFromSnapshot(snapshot) {
 async function writeItemToFirestore(key, item) {
   if (!item?.id) return;
   queuePendingDocWrite(key, item);
-  // flushPendingWrites tự xử lý lock và retry — không cần await ở đây
-  // để không block UI khi Firestore chậm
-  flushPendingWrites().catch(err => setSyncError('[store] writeItemToFirestore flush failed', err));
+  flushPendingWrites().catch(err => setSyncError('[store] flush failed', err));
 }
 
 async function deleteItemFromFirestore(key, id) {
@@ -404,7 +402,6 @@ function setSyncError(message, err, options = {}) {
 
 async function flushPendingWrites() {
   if (!_firebaseReady || !_teacherId || !_firebaseApi) return;
-  // Nếu đang flush: đánh dấu cần chạy lại sau khi xong (không skip entry mới)
   if (_isFlushingPendingWrites) {
     _needsFlushAfterCurrent = true;
     return;
@@ -412,7 +409,7 @@ async function flushPendingWrites() {
   _isFlushingPendingWrites = true;
   _needsFlushAfterCurrent = false;
   try {
-    let maxPasses = 5; // tránh vòng lặp vô hạn nếu Firestore lỗi liên tục
+    let maxPasses = 5;
     while ((_pendingDocWrites.length > 0 || _pendingDeletes.length > 0) && maxPasses-- > 0) {
       const writesToProcess  = [..._pendingDocWrites];
       const deletesToProcess = [..._pendingDeletes];
@@ -426,7 +423,6 @@ async function flushPendingWrites() {
             cleanForFirestore(entry.item),
             { merge: false }
           );
-          // Xóa ngay sau khi setDoc resolve — không chờ onSnapshot
           const idx = _pendingDocWrites.findIndex(
             e => e?.key === entry.key && String(e?.item?.id) === String(entry.item.id)
           );
@@ -434,7 +430,6 @@ async function flushPendingWrites() {
           _optimisticDocs[entry.key]?.delete(String(entry.item.id));
         } catch (err) {
           setSyncError(`[store] Write ${entry.key}/${entry.item.id} failed`, err);
-          // Giữ entry trong queue để retry sau
         }
       }
 
@@ -451,14 +446,11 @@ async function flushPendingWrites() {
           setSyncError(`[store] Delete ${entry.key}/${entry.id} failed`, err);
         }
       }
-
-      // Nếu không có gì được gửi thành công (tất cả lỗi) → dừng để tránh loop
       if (sentCount === 0) break;
     }
     persistPendingQueues();
   } finally {
     _isFlushingPendingWrites = false;
-    // Entry mới được thêm trong khi đang flush → flush lại ngay
     if (_needsFlushAfterCurrent && (_pendingDocWrites.length + _pendingDeletes.length > 0)) {
       _needsFlushAfterCurrent = false;
       setTimeout(() => flushPendingWrites(), 0);
@@ -554,7 +546,7 @@ const Store = {
         _unsubscribers.push(unsubscribe);
       });
 
-      flushPendingWrites();
+      await flushPendingWrites();
       await waitForFirstSnapshots();
       Store.emit('sync', Store.getSyncStatus());
       return true;
