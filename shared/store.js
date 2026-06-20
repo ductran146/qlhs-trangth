@@ -5,15 +5,16 @@
  */
 
 // Firebase/Auth are imported lazily in Store.init().
-// This keeps normal page rendering fast on mobile tab switches because
-// week-attendance/month-overview can draw from local cache before the
-// Firebase CDN SDK and Firestore snapshots finish loading.
+// Firestore server is treated as the source of truth for the first paint.
+// Browser localStorage/IndexedDB is not used as initial data because Safari/Chrome
+// can keep stale cache per browser and make different devices show different data.
 
 const AVATAR_COLORS = ['#796EFF','#2ECC71','#FFB800','#FF2323','#02AAD8','#9D70F9','#08D1A0','#FF784E'];
 const COLLECTION_KEYS = ['students', 'sessions', 'debts', 'reports'];
 const BOOTSTRAP_KEY = 'nkct_bootstrap_state';
 const STATIC_DATA_FILE = 'data.json';
 const FIRESTORE_FALLBACK_TIMEOUT_MS = 5000;
+const REMOTE_FIRST_PAINT_TIMEOUT_MS = 3500;
 
 const DEFAULT = {
   students: [],
@@ -23,10 +24,12 @@ const DEFAULT = {
 };
 
 const _listeners = {};
-const _syncStatus = { auth: 'idle', firestore: 'cache', error: null, lastRemoteAt: null, source: 'local-cache' };
+const _syncStatus = { auth: 'idle', firestore: 'idle', error: null, lastRemoteAt: null, source: 'empty-start' };
 const _pendingDocWrites = [];
 const _pendingDeletes = [];
-const _cache = Object.fromEntries(COLLECTION_KEYS.map(key => [key, readLocalOrDefault(key)]));
+// Start from empty data and wait for Firestore.
+// This avoids showing stale browser cache before the server snapshot arrives.
+const _cache = Object.fromEntries(COLLECTION_KEYS.map(key => [key, structuredCloneSafe(DEFAULT[key] || [])]));
 const _remoteIds = Object.fromEntries(COLLECTION_KEYS.map(key => [key, new Set()]));
 const _firstSnapshot = Object.fromEntries(COLLECTION_KEYS.map(key => [key, false]));
 let _initPromise = null;
@@ -37,6 +40,7 @@ let _firebaseApi = null;
 let _authApi = null;
 let _staticFallbackPromise = null;
 let _fallbackTimer = null;
+let _firstSnapshotWaiters = [];
 
 async function loadFirebaseRuntime() {
   if (_firebaseApi && _authApi) return { ..._firebaseApi, Auth: _authApi.Auth };
@@ -51,14 +55,14 @@ async function loadFirebaseRuntime() {
 
 
 function readLocalOrDefault(key) {
+  // Kept only for manual/debug fallback. The normal app boot no longer reads
+  // localStorage before Firestore because old local cache caused data mismatch
+  // between Safari, Chrome, local and GitHub Pages.
   try {
     const raw = localStorage.getItem('nkct_' + key);
     if (raw) return JSON.parse(raw);
   } catch (_err) {}
 
-  // Fallback aggregate cache. This makes every page draw the last known data
-  // immediately after mobile tab/page navigation, even before Firebase Auth
-  // restores the session or Firestore returns the first snapshot.
   try {
     const boot = localStorage.getItem(BOOTSTRAP_KEY);
     if (boot) {
@@ -130,7 +134,7 @@ function startFirestoreFallbackTimer() {
   if (_fallbackTimer) clearTimeout(_fallbackTimer);
   _fallbackTimer = setTimeout(() => {
     const hasSnapshot = COLLECTION_KEYS.some(key => _firstSnapshot[key] === true);
-    if (!_firebaseReady || hasSnapshot || hasAnyCachedData()) return;
+    if (!_firebaseReady || hasSnapshot) return;
     loadStaticFallback('firestore-timeout');
   }, FIRESTORE_FALLBACK_TIMEOUT_MS);
 }
@@ -172,6 +176,23 @@ function setLocalCache(key, value, shouldEmit = true, source = 'local-cache') {
 
 function allCollectionsHaveSnapshot() {
   return COLLECTION_KEYS.every(key => _firstSnapshot[key] === true);
+}
+
+function resolveFirstSnapshotWaiters() {
+  if (!allCollectionsHaveSnapshot()) return;
+  const waiters = _firstSnapshotWaiters.splice(0);
+  waiters.forEach(resolve => resolve(true));
+}
+
+function waitForFirstSnapshots(timeoutMs = REMOTE_FIRST_PAINT_TIMEOUT_MS) {
+  if (allCollectionsHaveSnapshot()) return Promise.resolve(true);
+  return new Promise(resolve => {
+    const timer = setTimeout(() => resolve(false), timeoutMs);
+    _firstSnapshotWaiters.push((value) => {
+      clearTimeout(timer);
+      resolve(value);
+    });
+  });
 }
 
 function updateFirestoreStatusFromSnapshot(snapshot) {
@@ -262,7 +283,8 @@ const Store = {
 
     _initPromise = (async () => {
       _syncStatus.auth = 'checking';
-      _syncStatus.firestore = 'cache';
+      _syncStatus.firestore = 'connecting';
+      _syncStatus.source = 'empty-start';
       Store.emit('sync', Store.getSyncStatus());
       const { Auth, onSnapshot } = await loadFirebaseRuntime();
       const authUser = await Auth.ready();
@@ -281,6 +303,11 @@ const Store = {
 
       _unsubscribers.forEach(unsub => { try { unsub(); } catch (_err) {} });
       _unsubscribers = [];
+      COLLECTION_KEYS.forEach(key => {
+        _firstSnapshot[key] = false;
+        _remoteIds[key] = new Set();
+      });
+      _firstSnapshotWaiters = [];
       _firebaseReady = true;
       _syncStatus.auth = 'signed_in';
       _syncStatus.firestore = 'syncing';
@@ -288,24 +315,32 @@ const Store = {
       Store.emit('sync', Store.getSyncStatus());
       startFirestoreFallbackTimer();
 
-      // Attach realtime listeners, but do NOT await the first snapshots.
-      // On iPhone/Safari page navigation can re-download Firebase SDK + wait for
-      // Firestore. Waiting here made the Checkin tab appear blank for 5–30s.
+      // Attach realtime listeners and wait briefly for the first Firestore result.
+      // This prioritizes correct sync across Safari/Chrome over showing stale
+      // local cache immediately. If the network is slow, components still render
+      // after REMOTE_FIRST_PAINT_TIMEOUT_MS and will update when snapshots arrive.
       COLLECTION_KEYS.forEach(key => {
         const unsubscribe = onSnapshot(teacherCollection(key), { includeMetadataChanges: true }, (snapshot) => {
           const remoteList = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
           const remoteIds = new Set(remoteList.map(item => String(item.id)));
           _remoteIds[key] = remoteIds;
 
-          // Firestore is the source of truth. Even when the remote list is
-          // empty, overwrite browser cache instead of uploading localStorage.
-          // Snapshot may arrive from Firestore's IndexedDB cache first, then
-          // from server. Both are safer than legacy app localStorage because
-          // they belong to Firestore sync, not old JSON/import data.
+          // Firestore is the source of truth. Even when the list is empty,
+          // overwrite browser cache instead of merging localStorage/static data.
           _firstSnapshot[key] = true;
           updateFirestoreStatusFromSnapshot(snapshot);
           setLocalCache(key, remoteList, true, snapshot.metadata.fromCache ? 'firestore-cache' : 'firestore-server');
           Store.emit('sync', Store.getSyncStatus());
+          resolveFirstSnapshotWaiters();
+
+          if (typeof window !== 'undefined' && window.__QLHS_DEBUG_SYNC__) {
+            console.log('[QLHS sync]', key, {
+              teacherId: _teacherId,
+              source: snapshot.metadata.fromCache ? 'firestore-cache' : 'firestore-server',
+              size: remoteList.length,
+              names: remoteList.map(item => item.name || item.studentName || item.id)
+            });
+          }
 
           // Flush pending writes only after the first server-backed snapshot.
           // This avoids stale browser cache being written back before the
@@ -317,6 +352,8 @@ const Store = {
         _unsubscribers.push(unsubscribe);
       });
 
+      await waitForFirstSnapshots();
+      Store.emit('sync', Store.getSyncStatus());
       return true;
     })();
 
@@ -342,7 +379,12 @@ const Store = {
   },
 
   getSyncStatus() {
-    return { ..._syncStatus, teacherId: _teacherId, firebaseReady: _firebaseReady };
+    return {
+      ..._syncStatus,
+      teacherId: _teacherId,
+      firebaseReady: _firebaseReady,
+      firstSnapshot: { ..._firstSnapshot }
+    };
   },
 
   async loadStaticFallback() {

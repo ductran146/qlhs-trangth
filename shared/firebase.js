@@ -3,8 +3,12 @@
  * Firebase app, Auth and Firestore setup for the static ES module app.
  * Uses CDN modules so the project can run on GitHub Pages without npm/bundler.
  *
- * Firestore is configured with its own IndexedDB local cache so the app can
- * open quickly on mobile while still using Firestore as the source of truth.
+ * Sync-first setup:
+ * - Do not enable Firestore persistent IndexedDB cache.
+ * - Each browser reads Firestore server/realtime data instead of keeping old
+ *   Safari/Chrome cache across sessions.
+ * - Auth persistence remains enabled so the teacher does not need to log in
+ *   every time.
  */
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
@@ -17,10 +21,7 @@ import {
   browserLocalPersistence
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {
-  initializeFirestore,
   getFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
   collection,
   doc,
   getDocs,
@@ -43,19 +44,10 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
-let firestoreDb;
-try {
-  firestoreDb = initializeFirestore(app, {
-    localCache: persistentLocalCache({
-      tabManager: persistentMultipleTabManager()
-    })
-  });
-} catch (err) {
-  console.warn('[firebase] Firestore persistent cache không bật được, fallback về cache mặc định:', err);
-  firestoreDb = getFirestore(app);
-}
-
-export const db = firestoreDb;
+// Use Firestore's default in-memory behavior. Do not enable persistentLocalCache,
+// because Safari/Chrome can keep different old IndexedDB snapshots and show
+// different student lists after GitHub/local changes.
+export const db = getFirestore(app);
 
 setPersistence(auth, browserLocalPersistence).catch((err) => {
   console.warn('[firebase] Không set được auth persistence:', err);
