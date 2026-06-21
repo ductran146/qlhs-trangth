@@ -3,7 +3,7 @@
  * Monthly snapshot for the first screen: totals, income, student progress and missing/makeup debts.
  * Used by: pages/checkin.html
  */
-import { Store, uid, avatarColor, initials, fmtMoney, todayStr, toLocalDateStr } from '../shared/store.js?v=20260621-sync3';
+import { Store, uid, avatarColor, initials, fmtMoney, todayStr, toLocalDateStr } from '../shared/store.js';
 
 const STATUS_META = {
   ok:      { tag: 'green',  label: 'Đúng tiến độ' },

@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Thêm nhận xét — Nhật ký can thiệp</title>
-<link rel="stylesheet" href="../shared/styles.css?v=20260621-sync3">
-<link rel="stylesheet" href="../shared/components.css?v=20260621-sync3">
+<link rel="stylesheet" href="../shared/styles.css">
+<link rel="stylesheet" href="../shared/components.css">
 </head>
 <body>
 <div class="app-shell">
@@ -19,14 +19,14 @@
   <div data-component="bottom-nav" data-active="students"></div>
 </div>
 
-<script src="../components/components-loader.js?v=20260621-sync3" type="module"></script>
+<script src="../components/components-loader.js" type="module"></script>
 
 <script type="module">
 import {
   Store,
   fmtDate,
   statusLabel,
-} from '../shared/store.js?v=20260621-sync3';
+} from '../shared/store.js';
 
 const page = document.getElementById('pageSessionNoteEdit');
 const params = new URLSearchParams(location.search);

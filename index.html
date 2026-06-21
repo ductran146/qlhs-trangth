@@ -7,7 +7,7 @@
 </head>
 <body>
 <script type="module">
-  import { Auth } from './shared/auth.js?v=20260621-sync3';
+  import { Auth } from './shared/auth.js';
   await Auth.ready();
   const target = Auth.isLoggedIn() ? 'pages/checkin.html' : 'pages/login.html';
   location.replace(target);

@@ -1,14 +1,13 @@
 /**
- * components/components-loader.js
- * Component boot with Firestore-first data sync.
+ * components/components-loader.js  — v2
  *
- * Why:
- * - Render header/bottom navigation placeholders immediately.
- * - Authenticate and start Firestore before rendering data components.
- * - Avoid showing stale local/browser cache on Safari/Chrome.
+ * Thay đổi so với v1:
+ *  - Bỏ hoàn toàn static data.json fallback (data.json rỗng không còn nguy hiểm
+ *    vì store.js v2 không dùng nó nữa).
+ *  - Store.init() chạy ngay sau khi auth xong, không có fallback timer.
+ *  - Skeleton topbar/bottom-nav vẫn render ngay để tránh blank.
  */
 
-const APP_VERSION = '20260621-sync3';
 const FAST_COMPONENTS = new Set(['bottom-nav', 'sidebar']);
 const DATA_COMPONENTS = new Set([
   'month-overview',
@@ -18,27 +17,17 @@ const DATA_COMPONENTS = new Set([
   'student-modal'
 ]);
 
-function isInPagesDir() {
-  return location.pathname.includes('/pages/');
-}
-
 function getActivePage() {
   return location.pathname.split('/').pop().replace('.html', '') || 'checkin';
 }
 
 function safeText(value) {
-  return String(value || '').replace(/[&<>"]/g, (ch) => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;'
-  }[ch]));
+  return String(value || '').replace(/[&<>"]/g, (ch) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch])
+  );
 }
 
-function renderTopbarSkeleton(el, dataset = {}) {
-  // Keep the fast shell identical to the real topbar component.
-  // Do not use dataset.title here; otherwise the header flashes the page title
-  // before components/topbar.js hydrates it back to the fixed app brand.
+function renderTopbarSkeleton(el) {
   el.innerHTML = `
     <header class="topbar" data-fast-shell="true">
       <div class="topbar-inner">
@@ -58,13 +47,12 @@ function renderTopbarSkeleton(el, dataset = {}) {
 
 function renderBottomNavFallback(el, dataset = {}) {
   const tabs = [
-    { key: 'checkin', href: 'checkin.html', icon: '✅', label: 'Điểm danh' },
-    { key: 'notes', href: 'notes.html', icon: '📓', label: 'Nhật ký' },
-    { key: 'students', href: 'students.html', icon: '👦', label: 'Học sinh' },
-    { key: 'income', href: 'income.html', icon: '💰', label: 'Thu nhập' },
+    { key: 'checkin',  href: 'checkin.html',  icon: '✅', label: 'Điểm danh' },
+    { key: 'notes',    href: 'notes.html',    icon: '📓', label: 'Nhật ký'   },
+    { key: 'students', href: 'students.html', icon: '👦', label: 'Học sinh'  },
+    { key: 'income',   href: 'income.html',   icon: '💰', label: 'Thu nhập'  },
   ];
   const active = dataset.active || getActivePage();
-
   el.innerHTML = `
     <nav class="bottom-nav" data-fast-shell="true">
       ${tabs.map(t => `
@@ -78,88 +66,85 @@ function renderBottomNavFallback(el, dataset = {}) {
 async function renderComponent(el) {
   const name = el.dataset.component;
   try {
-    const mod = await import(`./${name}.js?v=${APP_VERSION}`);
+    const mod = await import(`./${name}.js`);
     if (typeof mod.render === 'function') {
       await mod.render(el, { ...el.dataset });
     } else {
-      console.warn(`[loader] ${name}.js has no export render()`);
+      console.warn(`[loader] ${name}.js không có export render()`);
     }
   } catch (err) {
-    console.error(`[loader] Failed to load component "${name}":`, err);
+    console.error(`[loader] Không load được component "${name}":`, err);
     el.innerHTML = `<div style="padding:8px;color:#f43f5e;font-size:12px">
       ⚠ Component "${name}" không tải được
     </div>`;
   }
 }
 
-async function requireFirebaseAuth() {
-  const { Auth } = await import(`../shared/auth.js?v=${APP_VERSION}`);
+async function requireAuth() {
+  const { Auth } = await import('../shared/auth.js');
   const ok = await Auth.requireAuth();
   return ok ? Auth : null;
 }
 
-async function startStoreRealtime() {
-  const { Store } = await import(`../shared/store.js?v=${APP_VERSION}`);
-  // Wait for Store.init(). The store itself only waits briefly for the first
-  // Firestore snapshots, then components render and continue to update realtime.
-  await Store.init();
+async function startStore() {
+  const { Store } = await import('../shared/store.js');
+  // Không await — UI draw từ localStorage bootstrap cache ngay lập tức.
+  // Store.init() kết nối Firestore và emit update khi snapshot về.
+  Store.init().catch(err => console.error('[loader] Store.init lỗi:', err));
   return Store;
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
   const slots = Array.from(document.querySelectorAll('[data-component]'));
 
-  // 1) Show mobile shell immediately. This removes the blank/missing topbar and
-  // bottom menu while Firebase Auth / Firestore modules are loading on mobile.
+  // 1) Render skeleton ngay (tránh blank trên mobile)
   for (const el of slots) {
-    const name = el.dataset.component;
-    if (name === 'topbar') renderTopbarSkeleton(el, { ...el.dataset });
-    if (name === 'bottom-nav') renderBottomNavFallback(el, { ...el.dataset });
+    if (el.dataset.component === 'topbar')     renderTopbarSkeleton(el);
+    if (el.dataset.component === 'bottom-nav') renderBottomNavFallback(el, { ...el.dataset });
   }
 
-  // Sidebar and bottom-nav do not need Firebase data; hydrate them immediately.
-  await Promise.all(slots
-    .filter(el => FAST_COMPONENTS.has(el.dataset.component))
-    .map(renderComponent));
-
-  // 2) Auth gate + topbar + Firestore first sync.
-  // Do this before rendering data components so Safari/Chrome do not show
-  // different stale local-cache states.
-  await requireFirebaseAuth().then(async (Auth) => {
+  // 2) Khởi động Auth + Store song song (không await)
+  const bootPromise = requireAuth().then(async (Auth) => {
     if (!Auth) return null;
-    await Promise.all(slots
-      .filter(el => el.dataset.component === 'topbar')
-      .map(renderComponent));
-    return startStoreRealtime();
-  }).catch((err) => {
-    console.error('[loader] Auth/Firestore boot failed:', err);
+    // Hydrate topbar thật (tên user, nút logout)
+    await Promise.all(
+      slots.filter(el => el.dataset.component === 'topbar').map(renderComponent)
+    );
+    return startStore();
+  }).catch(err => {
+    console.error('[loader] Auth/Store boot lỗi:', err);
     return null;
   });
 
-  // 3) Render data components after Store.init() has started Firestore and
-  // waited briefly for first snapshots. Realtime subscriptions still update UI
-  // immediately when later server data arrives.
-  await Promise.all(slots
-    .filter(el => DATA_COMPONENTS.has(el.dataset.component))
-    .map(renderComponent));
+  // 3) Render nav ngay (không cần Firebase)
+  await Promise.all(
+    slots.filter(el => FAST_COMPONENTS.has(el.dataset.component)).map(renderComponent)
+  );
 
-  // 4) Render any remaining custom components.
-  await Promise.all(slots
-    .filter(el => {
+  // 4) Render data components từ localStorage cache (hiển thị ngay)
+  await Promise.all(
+    slots.filter(el => DATA_COMPONENTS.has(el.dataset.component)).map(renderComponent)
+  );
+
+  // 5) Giữ reference để browser không garbage-collect
+  void bootPromise;
+
+  // 6) Render các component còn lại
+  await Promise.all(
+    slots.filter(el => {
       const name = el.dataset.component;
       return name !== 'topbar' && !FAST_COMPONENTS.has(name) && !DATA_COMPONENTS.has(name);
-    })
-    .map(renderComponent));
+    }).map(renderComponent)
+  );
 });
 
-// iOS Safari can restore pages from bfcache. When it does, make sure the fast
-// shell is still present instead of waiting for a manual refresh.
+// iOS Safari bfcache restore
 window.addEventListener('pageshow', (event) => {
   if (!event.persisted) return;
-  document.querySelectorAll('[data-component="bottom-nav"]').forEach((el) => {
+  document.querySelectorAll('[data-component="bottom-nav"]').forEach(el => {
     if (!el.querySelector('.bottom-nav')) renderBottomNavFallback(el, { ...el.dataset });
   });
-  document.querySelectorAll('[data-component="topbar"]').forEach((el) => {
-    if (!el.querySelector('.topbar')) renderTopbarSkeleton(el, { ...el.dataset });
+  document.querySelectorAll('[data-component="topbar"]').forEach(el => {
+    if (!el.querySelector('.topbar')) renderTopbarSkeleton(el);
   });
 });

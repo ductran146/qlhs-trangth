@@ -1,670 +1,435 @@
 /**
- * shared/store.js
- * Single source of truth. Components keep using the same Store API,
- * while data is synced with Cloud Firestore in realtime.
+ * shared/store.js  — v2 (fixed sync)
+ *
+ * Nguyên tắc thiết kế lại:
+ *  1. Firestore server luôn là nguồn dữ liệu duy nhất.
+ *  2. localStorage chỉ là HIỂN THỊ TẠM (bootstrap cache) — không bao giờ ghi ngược lên Firestore.
+ *  3. Snapshot từ Firestore IndexedDB cache (fromCache=true) được hiển thị nhưng
+ *     KHÔNG đánh dấu "synced" — phải chờ server snapshot.
+ *  4. _initPromise được reset mỗi khi user logout / auth thay đổi.
+ *  5. Không fallback về data.json rỗng (tránh xóa data khi mạng chậm).
+ *  6. Pending writes chỉ flush SAU khi nhận server snapshot đầu tiên.
  */
 
-// Firebase/Auth are imported lazily in Store.init().
-// Firestore server is treated as the source of truth for the first paint.
-// Browser localStorage/IndexedDB is not used as initial data because Safari/Chrome
-// can keep stale cache per browser and make different devices show different data.
-
-const APP_VERSION = '20260621-sync3';
 const AVATAR_COLORS = ['#796EFF','#2ECC71','#FFB800','#FF2323','#02AAD8','#9D70F9','#08D1A0','#FF784E'];
 const COLLECTION_KEYS = ['students', 'sessions', 'debts', 'reports'];
-const BOOTSTRAP_KEY = 'nkct_bootstrap_state';
-const PENDING_WRITES_KEY = 'nkct_pending_doc_writes';
-const PENDING_DELETES_KEY = 'nkct_pending_doc_deletes';
-const STATIC_DATA_FILE = 'data.json';
-const FIRESTORE_FALLBACK_TIMEOUT_MS = 5000;
-const REMOTE_FIRST_PAINT_TIMEOUT_MS = 3500;
+const BOOTSTRAP_KEY   = 'nkct_bootstrap_state';
+const LS_PREFIX       = 'nkct_';
 
-const DEFAULT = {
-  students: [],
-  sessions: [],
-  debts: [],
-  reports: []
+const DEFAULT = { students: [], sessions: [], debts: [], reports: [] };
+
+// ── In-memory state ──────────────────────────────────────────────────────────
+const _listeners    = {};
+const _pendingWrites  = [];   // { key, item }
+const _pendingDeletes = [];   // { key, id }
+
+// Trạng thái sync hiển thị ra UI
+const _syncStatus = {
+  auth: 'idle',
+  firestore: 'cache',
+  error: null,
+  lastRemoteAt: null,
+  source: 'local-cache'
 };
 
-const _listeners = {};
-const _syncStatus = { auth: 'idle', firestore: 'idle', error: null, lastRemoteAt: null, source: 'empty-start' };
-const _pendingDocWrites = readPendingQueue(PENDING_WRITES_KEY);
-const _pendingDeletes = readPendingQueue(PENDING_DELETES_KEY);
-// Start from empty data and wait for Firestore.
-// This avoids showing stale browser cache before the server snapshot arrives.
-const _cache = Object.fromEntries(COLLECTION_KEYS.map(key => [key, structuredCloneSafe(DEFAULT[key] || [])]));
-const _remoteIds = Object.fromEntries(COLLECTION_KEYS.map(key => [key, new Set()]));
-const _firstSnapshot = Object.fromEntries(COLLECTION_KEYS.map(key => [key, false]));
-const _optimisticDocs = buildOptimisticDocMaps(_pendingDocWrites);
-const _optimisticDeletes = buildOptimisticDeleteMaps(_pendingDeletes);
-let _initPromise = null;
-let _teacherId = null;
+// Cache hiển thị (đọc từ localStorage lúc boot)
+const _cache = Object.fromEntries(
+  COLLECTION_KEYS.map(key => [key, _readBootstrap(key)])
+);
+
+// Các IDs đang tồn tại trên Firestore (để diff khi allowDeletes)
+const _remoteIds = Object.fromEntries(
+  COLLECTION_KEYS.map(key => [key, new Set()])
+);
+
+// Đã nhận snapshot server (không phải cache) lần đầu chưa
+const _serverSnapshotReceived = Object.fromEntries(
+  COLLECTION_KEYS.map(key => [key, false])
+);
+
+let _initPromise   = null;
+let _teacherId     = null;
 let _unsubscribers = [];
 let _firebaseReady = false;
-let _firebaseApi = null;
-let _authApi = null;
-let _staticFallbackPromise = null;
-let _fallbackTimer = null;
-let _firstSnapshotWaiters = [];
-let _isFlushingPendingWrites = false;
+let _firebaseApi   = null;
+let _authApi       = null;
 
-// Keep pending write queues durable even if the teacher changes tab/page or presses F5
-// immediately after saving a student/session. The actual Firestore request may be
-// cancelled by the browser during navigation, but the queued operation will be
-// replayed on the next app boot.
-if (typeof window !== 'undefined') {
-  window.addEventListener('beforeunload', persistPendingQueues);
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') persistPendingQueues();
-  });
-}
+// ── Bootstrap helpers ────────────────────────────────────────────────────────
 
-async function loadFirebaseRuntime() {
-  if (_firebaseApi && _authApi) return { ..._firebaseApi, Auth: _authApi.Auth };
-  const [{ Auth }, firebase] = await Promise.all([
-    import(`./auth.js?v=${APP_VERSION}`),
-    import(`./firebase.js?v=${APP_VERSION}`)
-  ]);
-  _authApi = { Auth };
-  _firebaseApi = firebase;
-  return { ...firebase, Auth };
-}
-
-function readPendingQueue(storageKey) {
+function _readBootstrap(key) {
   try {
-    const raw = localStorage.getItem(storageKey);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (_err) {
-    return [];
-  }
-}
-
-function persistPendingQueues() {
-  try { localStorage.setItem(PENDING_WRITES_KEY, JSON.stringify(_pendingDocWrites)); } catch (_err) {}
-  try { localStorage.setItem(PENDING_DELETES_KEY, JSON.stringify(_pendingDeletes)); } catch (_err) {}
-}
-
-function buildOptimisticDocMaps(queue) {
-  const maps = Object.fromEntries(COLLECTION_KEYS.map(key => [key, new Map()]));
-  for (const entry of queue || []) {
-    if (!entry?.key || !entry?.item?.id || !maps[entry.key]) continue;
-    maps[entry.key].set(String(entry.item.id), entry.item);
-  }
-  return maps;
-}
-
-function buildOptimisticDeleteMaps(queue) {
-  const maps = Object.fromEntries(COLLECTION_KEYS.map(key => [key, new Set()]));
-  for (const entry of queue || []) {
-    if (!entry?.key || !entry?.id || !maps[entry.key]) continue;
-    maps[entry.key].add(String(entry.id));
-  }
-  return maps;
-}
-
-function sameJson(a, b) {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
-
-function remoteMatchesExpected(remote, expected) {
-  if (!remote || !expected) return false;
-  const cleanExpected = cleanForFirestore(expected);
-  for (const [field, value] of Object.entries(cleanExpected)) {
-    if (!sameJson(remote[field], value)) return false;
-  }
-  return true;
-}
-
-function removeAckedPendingOps(key, remoteList, isServerSnapshot) {
-  if (!isServerSnapshot) return;
-  const remoteById = new Map((remoteList || []).map(item => [String(item.id), item]));
-  let changed = false;
-
-  for (let i = _pendingDocWrites.length - 1; i >= 0; i--) {
-    const entry = _pendingDocWrites[i];
-    if (entry?.key !== key || !entry?.item?.id) continue;
-    const id = String(entry.item.id);
-    const remote = remoteById.get(id);
-    if (remote && remoteMatchesExpected(remote, entry.item)) {
-      _pendingDocWrites.splice(i, 1);
-      _optimisticDocs[key]?.delete(id);
-      changed = true;
-    }
-  }
-
-  for (let i = _pendingDeletes.length - 1; i >= 0; i--) {
-    const entry = _pendingDeletes[i];
-    if (entry?.key !== key || !entry?.id) continue;
-    const id = String(entry.id);
-    if (!remoteById.has(id)) {
-      _pendingDeletes.splice(i, 1);
-      _optimisticDeletes[key]?.delete(id);
-      changed = true;
-    }
-  }
-
-  if (changed) persistPendingQueues();
-}
-
-function applyOptimisticOverlay(key, remoteList) {
-  const byId = new Map((remoteList || []).map(item => [String(item.id), item]));
-
-  const deleted = _optimisticDeletes[key];
-  if (deleted?.size) {
-    for (const id of deleted) byId.delete(String(id));
-  }
-
-  const docs = _optimisticDocs[key];
-  if (docs?.size) {
-    for (const [id, item] of docs.entries()) {
-      if (deleted?.has(id)) continue;
-      byId.set(String(id), item);
-    }
-  }
-
-  return Array.from(byId.values());
-}
-
-function queuePendingDocWrite(key, item) {
-  if (!item?.id) return;
-  const cleaned = cleanForFirestore(item);
-  const id = String(cleaned.id);
-
-  for (let i = _pendingDocWrites.length - 1; i >= 0; i--) {
-    const entry = _pendingDocWrites[i];
-    if (entry?.key === key && String(entry?.item?.id) === id) _pendingDocWrites.splice(i, 1);
-  }
-  for (let i = _pendingDeletes.length - 1; i >= 0; i--) {
-    const entry = _pendingDeletes[i];
-    if (entry?.key === key && String(entry?.id) === id) _pendingDeletes.splice(i, 1);
-  }
-
-  _pendingDocWrites.push({ key, item: cleaned, queuedAt: new Date().toISOString() });
-  _optimisticDocs[key]?.set(id, cleaned);
-  _optimisticDeletes[key]?.delete(id);
-  persistPendingQueues();
-}
-
-function queuePendingDelete(key, id) {
-  if (!id) return;
-  id = String(id);
-
-  for (let i = _pendingDocWrites.length - 1; i >= 0; i--) {
-    const entry = _pendingDocWrites[i];
-    if (entry?.key === key && String(entry?.item?.id) === id) _pendingDocWrites.splice(i, 1);
-  }
-  for (let i = _pendingDeletes.length - 1; i >= 0; i--) {
-    const entry = _pendingDeletes[i];
-    if (entry?.key === key && String(entry?.id) === id) _pendingDeletes.splice(i, 1);
-  }
-
-  _pendingDeletes.push({ key, id, queuedAt: new Date().toISOString() });
-  _optimisticDocs[key]?.delete(id);
-  _optimisticDeletes[key]?.add(id);
-  persistPendingQueues();
-}
-
-
-function readLocalOrDefault(key) {
-  // Kept only for manual/debug fallback. The normal app boot no longer reads
-  // localStorage before Firestore because old local cache caused data mismatch
-  // between Safari, Chrome, local and GitHub Pages.
-  try {
-    const raw = localStorage.getItem('nkct_' + key);
+    const raw = localStorage.getItem(LS_PREFIX + key);
     if (raw) return JSON.parse(raw);
-  } catch (_err) {}
-
+  } catch (_) {}
   try {
     const boot = localStorage.getItem(BOOTSTRAP_KEY);
     if (boot) {
       const parsed = JSON.parse(boot);
       if (Array.isArray(parsed?.[key])) return parsed[key];
     }
-  } catch (_err) {}
-
-  return DEFAULT[key] ? structuredCloneSafe(DEFAULT[key]) : [];
+  } catch (_) {}
+  return [];
 }
 
-function structuredCloneSafe(value) {
-  return JSON.parse(JSON.stringify(value));
-}
-
-function hasAnyCachedData() {
-  return COLLECTION_KEYS.some(key => Array.isArray(_cache[key]) && _cache[key].length > 0);
-}
-
-function normalizeDataPayload(payload) {
-  const source = payload && typeof payload === 'object' && payload.data && typeof payload.data === 'object'
-    ? payload.data
-    : payload;
-  const next = {};
-  for (const key of COLLECTION_KEYS) {
-    next[key] = Array.isArray(source?.[key]) ? source[key] : [];
-  }
-  return next;
-}
-
-function staticDataUrl() {
-  const inPagesDir = location.pathname.includes('/pages/');
-  const base = inPagesDir ? '../' : './';
-  return `${base}${STATIC_DATA_FILE}?t=${Date.now()}`;
-}
-
-async function fetchStaticDataJson() {
-  const response = await fetch(staticDataUrl(), { cache: 'no-store' });
-  if (!response.ok) throw new Error(`Không đọc được ${STATIC_DATA_FILE}: HTTP ${response.status}`);
-  return normalizeDataPayload(await response.json());
-}
-
-async function loadStaticFallback(reason = 'firestore-fallback') {
-  if (_staticFallbackPromise) return _staticFallbackPromise;
-  _staticFallbackPromise = (async () => {
-    try {
-      const payload = await fetchStaticDataJson();
-      for (const key of COLLECTION_KEYS) {
-        setLocalCache(key, payload[key], true, 'static-json');
-      }
-      _syncStatus.firestore = 'static';
-      _syncStatus.source = 'static-json';
-      _syncStatus.error = reason;
-      Store.emit('sync', Store.getSyncStatus());
-      return true;
-    } catch (err) {
-      console.warn('[store] Static data fallback failed:', err);
-      _syncStatus.firestore = hasAnyCachedData() ? 'local-cache' : 'error';
-      _syncStatus.source = hasAnyCachedData() ? 'local-cache' : 'empty-default';
-      _syncStatus.error = err?.message || String(err);
-      Store.emit('sync', Store.getSyncStatus());
-      return false;
-    }
-  })();
-  return _staticFallbackPromise;
-}
-
-function startFirestoreFallbackTimer() {
-  if (_fallbackTimer) clearTimeout(_fallbackTimer);
-  _fallbackTimer = setTimeout(() => {
-    const hasSnapshot = COLLECTION_KEYS.some(key => _firstSnapshot[key] === true);
-    if (!_firebaseReady || hasSnapshot) return;
-    loadStaticFallback('firestore-timeout');
-  }, FIRESTORE_FALLBACK_TIMEOUT_MS);
-}
-
-function stopFirestoreFallbackTimerIfReady() {
-  if (!allCollectionsHaveSnapshot() || !_fallbackTimer) return;
-  clearTimeout(_fallbackTimer);
-  _fallbackTimer = null;
-}
-
-function teacherCollection(key) {
-  if (!_teacherId || !_firebaseApi) throw new Error('Firestore teacherId is not ready.');
-  return _firebaseApi.collection(_firebaseApi.db, 'teachers', _teacherId, key);
-}
-
-function teacherDoc(key, id) {
-  if (!_teacherId || !_firebaseApi) throw new Error('Firestore teacherId is not ready.');
-  return _firebaseApi.doc(_firebaseApi.db, 'teachers', _teacherId, key, String(id));
-}
-
-function persistBootstrapCache() {
+function _persistBootstrap() {
   try {
-    const payload = Object.fromEntries(COLLECTION_KEYS.map(key => [key, _cache[key] || []]));
+    const payload = Object.fromEntries(COLLECTION_KEYS.map(k => [k, _cache[k] || []]));
     payload.updatedAt = new Date().toISOString();
     localStorage.setItem(BOOTSTRAP_KEY, JSON.stringify(payload));
-  } catch (_err) {}
+  } catch (_) {}
 }
 
-function setLocalCache(key, value, shouldEmit = true, source = 'local-cache') {
+function _setCache(key, value, source = 'local-cache', shouldEmit = true) {
   _cache[key] = Array.isArray(value) ? value : [];
   _syncStatus.source = source;
-  // Do not persist main Firestore data to localStorage. Pending-write queues are
-  // persisted separately; main data must always come from Firestore server to
-  // keep Safari/Chrome/GitHub consistent.
-  // try { localStorage.setItem('nkct_' + key, JSON.stringify(_cache[key])); } catch (_err) {}
-  // persistBootstrapCache();
+  try { localStorage.setItem(LS_PREFIX + key, JSON.stringify(_cache[key])); } catch (_) {}
+  _persistBootstrap();
   if (shouldEmit) {
     Store.emit(key, _cache[key]);
     Store.emit('*');
   }
 }
 
-function allCollectionsHaveSnapshot() {
-  return COLLECTION_KEYS.every(key => _firstSnapshot[key] === true);
+// ── Firebase lazy loader ─────────────────────────────────────────────────────
+
+async function _loadFirebase() {
+  if (_firebaseApi && _authApi) return { ..._firebaseApi, Auth: _authApi.Auth };
+  const [{ Auth }, firebase] = await Promise.all([
+    import('./auth.js'),
+    import('./firebase.js')
+  ]);
+  _authApi = { Auth };
+  _firebaseApi = firebase;
+  return { ...firebase, Auth };
 }
 
-function resolveFirstSnapshotWaiters() {
-  if (!allCollectionsHaveSnapshot()) return;
-  const waiters = _firstSnapshotWaiters.splice(0);
-  waiters.forEach(resolve => resolve(true));
+// ── Firestore path helpers ───────────────────────────────────────────────────
+
+function _col(key) {
+  if (!_teacherId || !_firebaseApi) throw new Error('Firestore chưa sẵn sàng.');
+  return _firebaseApi.collection(_firebaseApi.db, 'teachers', _teacherId, key);
 }
 
-function waitForFirstSnapshots(timeoutMs = REMOTE_FIRST_PAINT_TIMEOUT_MS) {
-  if (allCollectionsHaveSnapshot()) return Promise.resolve(true);
-  return new Promise(resolve => {
-    const timer = setTimeout(() => resolve(false), timeoutMs);
-    _firstSnapshotWaiters.push((value) => {
-      clearTimeout(timer);
-      resolve(value);
-    });
-  });
+function _docRef(key, id) {
+  if (!_teacherId || !_firebaseApi) throw new Error('Firestore chưa sẵn sàng.');
+  return _firebaseApi.doc(_firebaseApi.db, 'teachers', _teacherId, key, String(id));
 }
 
-function updateFirestoreStatusFromSnapshot(snapshot) {
-  stopFirestoreFallbackTimerIfReady();
-  _syncStatus.firestore = allCollectionsHaveSnapshot() ? 'synced' : 'syncing';
-  _syncStatus.source = snapshot?.metadata?.fromCache ? 'firestore-cache' : 'firestore-server';
-  if (!snapshot?.metadata?.fromCache) {
-    _syncStatus.lastRemoteAt = new Date().toISOString();
+function _cleanForFirestore(value) {
+  return JSON.parse(JSON.stringify(value, (_k, v) => v === undefined ? null : v));
+}
+
+// ── Pending write queue ──────────────────────────────────────────────────────
+
+async function _flushPending() {
+  if (!_firebaseReady || !_teacherId || !_firebaseApi) return;
+  const writes  = _pendingWrites.splice(0);
+  const deletes = _pendingDeletes.splice(0);
+  const promises = [
+    ...writes.map(({ key, item }) =>
+      _firebaseApi.setDoc(_docRef(key, item.id), _cleanForFirestore(item), { merge: false })
+        .catch(err => _setSyncError(`Pending write ${key}/${item.id} thất bại`, err))
+    ),
+    ...deletes.map(({ key, id }) =>
+      _firebaseApi.deleteDoc(_docRef(key, id))
+        .catch(err => _setSyncError(`Pending delete ${key}/${id} thất bại`, err))
+    )
+  ];
+  await Promise.all(promises);
+}
+
+// ── Single-doc write / delete (optimistic local + Firestore) ────────────────
+
+async function _writeDoc(key, item) {
+  if (!item?.id) return;
+  const clean = _cleanForFirestore(item);
+  if (!_firebaseReady || !_teacherId || !_firebaseApi) {
+    _pendingWrites.push({ key, item: clean });
+    return;
   }
+  await _firebaseApi.setDoc(_docRef(key, item.id), clean, { merge: false })
+    .catch(err => _setSyncError(`Write ${key}/${item.id} thất bại`, err));
 }
 
-async function ensureReadyForWrite() {
-  // Writes must wait for Auth + Firestore to be ready. Otherwise the new student
-  // only exists in this browser's optimistic memory and disappears on another
-  // browser/GitHub refresh.
-  if (_firebaseReady && _teacherId && _firebaseApi) return true;
-  await Store.init();
-  if (_firebaseReady && _teacherId && _firebaseApi) return true;
-  throw new Error('Chưa kết nối được Firebase. Vui lòng đăng nhập lại hoặc kiểm tra mạng.');
+async function _deleteDoc(key, id) {
+  if (!id) return;
+  if (!_firebaseReady || !_teacherId || !_firebaseApi) {
+    _pendingDeletes.push({ key, id: String(id) });
+    return;
+  }
+  await _firebaseApi.deleteDoc(_docRef(key, id))
+    .catch(err => _setSyncError(`Delete ${key}/${id} thất bại`, err));
 }
 
-async function writeItemToFirestore(key, item) {
-  if (!item?.id) return false;
-  queuePendingDocWrite(key, item);
-  await ensureReadyForWrite();
-  await flushPendingWrites({ throwOnError: true });
-  return true;
-}
+// ── Collection replace (dùng cho Store.set) ──────────────────────────────────
+// Chỉ thực hiện khi đã có server snapshot → không overwrite Firestore bằng
+// localStorage stale.
 
-async function deleteItemFromFirestore(key, id) {
-  if (!id) return false;
-  queuePendingDelete(key, id);
-  await ensureReadyForWrite();
-  await flushPendingWrites({ throwOnError: true });
-  return true;
-}
+async function _syncCollection(key, value, allowDeletes = false) {
+  if (!_firebaseReady || !_teacherId || !_firebaseApi) return;
 
-async function syncCollectionToFirestore(key, value, options = {}) {
-  // Queue every collection-level write before attempting Firestore.
-  // Some UI flows call Store.set('students', nextList) instead of upsertStudent().
-  // If the teacher switches page/F5 immediately, direct setDoc() can be cancelled;
-  // a persisted pending queue makes the write replay on next boot.
+  // Bảo vệ quan trọng: chỉ cho phép delete khi đã có server snapshot
+  const safeDelete = allowDeletes && _serverSnapshotReceived[key] === true;
   const list = Array.isArray(value) ? value : [];
-  const allowDeletes = options.allowDeletes === true && _firstSnapshot[key] === true;
-  const nextIds = new Set(list.map(item => String(item?.id || '')).filter(Boolean));
-  const previousIds = _remoteIds[key] || new Set();
+  const nextIds = new Set(list.map(item => String(item.id)).filter(Boolean));
+  const prevIds = _remoteIds[key] || new Set();
 
+  const promises = [];
   for (const item of list) {
     if (!item?.id) continue;
-    queuePendingDocWrite(key, item);
+    promises.push(
+      _firebaseApi.setDoc(_docRef(key, item.id), _cleanForFirestore(item), { merge: false })
+        .catch(err => _setSyncError(`Sync write ${key}/${item.id} thất bại`, err))
+    );
   }
-
-  if (allowDeletes) {
-    for (const id of previousIds) {
-      if (!nextIds.has(id)) queuePendingDelete(key, id);
+  if (safeDelete) {
+    for (const id of prevIds) {
+      if (!nextIds.has(id)) {
+        promises.push(
+          _firebaseApi.deleteDoc(_docRef(key, id))
+            .catch(err => _setSyncError(`Sync delete ${key}/${id} thất bại`, err))
+        );
+      }
     }
   }
-
-  await ensureReadyForWrite();
-  await flushPendingWrites({ throwOnError: true });
-  return true;
+  await Promise.all(promises);
 }
 
-function setSyncError(message, err, options = {}) {
-  console.error(message + ':', err);
+// ── Sync status helpers ──────────────────────────────────────────────────────
+
+function _allServerSnapshotsReceived() {
+  return COLLECTION_KEYS.every(k => _serverSnapshotReceived[k] === true);
+}
+
+function _setSyncError(message, err) {
+  console.error(message, err);
   _syncStatus.error = err?.message || String(err || message);
   _syncStatus.firestore = 'error';
   Store.emit('sync', Store.getSyncStatus());
-  if (options.staticFallback === true) loadStaticFallback(_syncStatus.error);
 }
 
-async function flushPendingWrites(options = {}) {
-  if (!_firebaseReady || !_teacherId || !_firebaseApi || _isFlushingPendingWrites) return false;
-  _isFlushingPendingWrites = true;
-  let ok = true;
-  let firstError = null;
-  try {
-    for (const entry of [..._pendingDocWrites]) {
-      if (!entry?.key || !entry?.item?.id) continue;
-      try {
-        await _firebaseApi.setDoc(teacherDoc(entry.key, entry.item.id), cleanForFirestore(entry.item), { merge: false });
-        const id = String(entry.item.id);
-        for (let i = _pendingDocWrites.length - 1; i >= 0; i--) {
-          const queued = _pendingDocWrites[i];
-          if (queued?.key === entry.key && String(queued?.item?.id) === id) _pendingDocWrites.splice(i, 1);
-        }
-        _optimisticDocs[entry.key]?.delete(id);
-        persistPendingQueues();
-      } catch (err) {
-        ok = false;
-        firstError = firstError || err;
-        setSyncError(`[store] Write ${entry.key}/${entry.item.id} failed`, err);
-      }
-    }
+// ── Realtime listener setup ──────────────────────────────────────────────────
 
-    for (const entry of [..._pendingDeletes]) {
-      if (!entry?.key || !entry?.id) continue;
-      try {
-        await _firebaseApi.deleteDoc(teacherDoc(entry.key, entry.id));
-        const id = String(entry.id);
-        for (let i = _pendingDeletes.length - 1; i >= 0; i--) {
-          const queued = _pendingDeletes[i];
-          if (queued?.key === entry.key && String(queued?.id) === id) _pendingDeletes.splice(i, 1);
+function _attachListeners({ onSnapshot }) {
+  _unsubscribers.forEach(fn => { try { fn(); } catch (_) {} });
+  _unsubscribers = [];
+
+  for (const key of COLLECTION_KEYS) {
+    const unsub = onSnapshot(
+      _col(key),
+      { includeMetadataChanges: true },
+      (snapshot) => {
+        const fromCache = snapshot.metadata.fromCache;
+        const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        // Cập nhật remote IDs để diff sau này
+        _remoteIds[key] = new Set(list.map(item => String(item.id)));
+
+        if (!fromCache) {
+          // ✅ Server snapshot: đây là source of truth tuyệt đối
+          _serverSnapshotReceived[key] = true;
+          _syncStatus.lastRemoteAt = new Date().toISOString();
+          _setCache(key, list, 'firestore-server');
+
+          // Flush pending writes chỉ sau server snapshot
+          _flushPending();
+        } else {
+          // IndexedDB cache snapshot: hiển thị nhanh nếu chưa có gì
+          // Không đánh dấu là "synced" — chờ server snapshot thật
+          if (!_serverSnapshotReceived[key]) {
+            _setCache(key, list, 'firestore-cache');
+          }
+          // Nếu đã có server snapshot rồi thì bỏ qua cache cũ
         }
-        _optimisticDeletes[entry.key]?.delete(id);
-        persistPendingQueues();
-      } catch (err) {
-        ok = false;
-        firstError = firstError || err;
-        setSyncError(`[store] Delete ${entry.key}/${entry.id} failed`, err);
+
+        // Cập nhật trạng thái sync
+        if (_allServerSnapshotsReceived()) {
+          _syncStatus.firestore = 'synced';
+        } else {
+          _syncStatus.firestore = fromCache ? 'cache' : 'syncing';
+        }
+        _syncStatus.error = null;
+        Store.emit('sync', Store.getSyncStatus());
+      },
+      (error) => {
+        _setSyncError(`Firestore listener lỗi cho ${key}`, error);
       }
-    }
-  } finally {
-    _isFlushingPendingWrites = false;
+    );
+    _unsubscribers.push(unsub);
   }
-
-  if (!ok && options.throwOnError) throw firstError || new Error('Không ghi được dữ liệu lên Firebase.');
-  return ok;
 }
 
-function cleanForFirestore(value) {
-  return JSON.parse(JSON.stringify(value, (_key, val) => val === undefined ? null : val));
-}
-
-// Deprecated on purpose: never auto-migrate localStorage to Firestore.
-// Old browser cache must not overwrite the realtime database.
-async function maybeMigrateLocalData() { return false; }
+// ── Store public API ─────────────────────────────────────────────────────────
 
 const Store = {
+
+  /**
+   * Khởi tạo Firebase Auth + Firestore realtime.
+   * Có thể gọi lại sau khi logout (reset về null).
+   */
   async init() {
     if (_initPromise) return _initPromise;
 
     _initPromise = (async () => {
       _syncStatus.auth = 'checking';
-      _syncStatus.firestore = 'connecting';
-      _syncStatus.source = 'empty-start';
+      _syncStatus.firestore = 'cache';
       Store.emit('sync', Store.getSyncStatus());
-      const { Auth, onSnapshot } = await loadFirebaseRuntime();
-      const authUser = await Auth.ready();
+
+      let firebase;
+      try {
+        firebase = await _loadFirebase();
+      } catch (err) {
+        _setSyncError('Không load được Firebase SDK', err);
+        _initPromise = null;   // cho phép retry
+        return false;
+      }
+
+      const { Auth, onSnapshot } = firebase;
+
+      let authUser;
+      try {
+        authUser = await Auth.ready();
+      } catch (err) {
+        _setSyncError('Firebase Auth lỗi', err);
+        _initPromise = null;
+        return false;
+      }
+
       if (!authUser) {
         _syncStatus.auth = 'signed_out';
         Store.emit('sync', Store.getSyncStatus());
+        _initPromise = null;   // cho phép thử lại sau khi login
         return false;
       }
+
       const user = Auth.currentUser();
       if (!user?.uid) {
         _syncStatus.auth = 'signed_out';
         Store.emit('sync', Store.getSyncStatus());
+        _initPromise = null;
         return false;
       }
-      _teacherId = user.uid;
 
-      _unsubscribers.forEach(unsub => { try { unsub(); } catch (_err) {} });
-      _unsubscribers = [];
-      COLLECTION_KEYS.forEach(key => {
-        _firstSnapshot[key] = false;
-        _remoteIds[key] = new Set();
-      });
-      _firstSnapshotWaiters = [];
+      _teacherId     = user.uid;
       _firebaseReady = true;
-      _syncStatus.auth = 'signed_in';
+      _syncStatus.auth      = 'signed_in';
       _syncStatus.firestore = 'syncing';
-      _syncStatus.error = null;
+      _syncStatus.error     = null;
       Store.emit('sync', Store.getSyncStatus());
-      startFirestoreFallbackTimer();
 
-      // Attach realtime listeners and wait briefly for the first Firestore result.
-      // This prioritizes correct sync across Safari/Chrome over showing stale
-      // local cache immediately. If the network is slow, components still render
-      // after REMOTE_FIRST_PAINT_TIMEOUT_MS and will update when snapshots arrive.
-      COLLECTION_KEYS.forEach(key => {
-        const unsubscribe = onSnapshot(teacherCollection(key), { includeMetadataChanges: true }, (snapshot) => {
-          const rawRemoteList = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-          const isServerSnapshot = !snapshot.metadata.fromCache;
-          removeAckedPendingOps(key, rawRemoteList, isServerSnapshot);
-          const remoteList = applyOptimisticOverlay(key, rawRemoteList);
-          const remoteIds = new Set(rawRemoteList.map(item => String(item.id)));
-          _remoteIds[key] = remoteIds;
+      // Đăng ký realtime listeners — KHÔNG await, UI draw từ localStorage trước
+      _attachListeners({ onSnapshot });
 
-          // Firestore is the source of truth. Even when the list is empty,
-          // overwrite browser cache instead of merging localStorage/static data.
-          // Pending local writes are overlaid until a server snapshot confirms them,
-          // so a quick refresh after adding a student will retry and not lose data.
-          _firstSnapshot[key] = true;
-          updateFirestoreStatusFromSnapshot(snapshot);
-          setLocalCache(key, remoteList, true, snapshot.metadata.fromCache ? 'firestore-cache' : 'firestore-server');
-          Store.emit('sync', Store.getSyncStatus());
-          resolveFirstSnapshotWaiters();
-
-          if (typeof window !== 'undefined' && window.__QLHS_DEBUG_SYNC__) {
-            console.log('[QLHS sync]', key, {
-              teacherId: _teacherId,
-              source: snapshot.metadata.fromCache ? 'firestore-cache' : 'firestore-server',
-              size: remoteList.length,
-              names: remoteList.map(item => item.name || item.studentName || item.id)
-            });
-          }
-
-          // Flush pending writes only after the first server-backed snapshot.
-          // This avoids stale browser cache being written back before the
-          // current Firestore state has had a chance to arrive.
-          if (!snapshot.metadata.fromCache) flushPendingWrites();
-        }, (error) => {
-          setSyncError(`[store] Firestore listener failed for ${key}`, error, { staticFallback: true });
-        });
-        _unsubscribers.push(unsubscribe);
-      });
-
-      flushPendingWrites();
-      await waitForFirstSnapshots();
-      Store.emit('sync', Store.getSyncStatus());
       return true;
     })();
 
     return _initPromise;
   },
 
+  /**
+   * Reset store state — gọi khi logout.
+   * Xóa listeners, reset flags, xóa cache in-memory và localStorage.
+   */
+  reset() {
+    _unsubscribers.forEach(fn => { try { fn(); } catch (_) {} });
+    _unsubscribers = [];
+    _initPromise   = null;
+    _teacherId     = null;
+    _firebaseReady = false;
+    _firebaseApi   = null;
+    _authApi       = null;
+    _pendingWrites.length  = 0;
+    _pendingDeletes.length = 0;
+
+    for (const key of COLLECTION_KEYS) {
+      _serverSnapshotReceived[key] = false;
+      _remoteIds[key] = new Set();
+      _cache[key] = [];
+      try { localStorage.removeItem(LS_PREFIX + key); } catch (_) {}
+    }
+    try { localStorage.removeItem(BOOTSTRAP_KEY); } catch (_) {}
+
+    _syncStatus.auth         = 'idle';
+    _syncStatus.firestore    = 'cache';
+    _syncStatus.error        = null;
+    _syncStatus.lastRemoteAt = null;
+    _syncStatus.source       = 'local-cache';
+    Store.emit('sync', Store.getSyncStatus());
+  },
+
   get(key) {
-    return _cache[key] ?? (DEFAULT[key] ? structuredCloneSafe(DEFAULT[key]) : null);
+    const data = _cache[key];
+    return Array.isArray(data) ? data : (DEFAULT[key] ? [...DEFAULT[key]] : null);
   },
 
   getAll() {
-    return {
-      students: this.get('students'),
-      sessions: this.get('sessions'),
-      debts:    this.get('debts'),
-      reports:  this.get('reports'),
-    };
+    return Object.fromEntries(COLLECTION_KEYS.map(k => [k, this.get(k)]));
   },
 
+  /**
+   * Ghi một collection lên Firestore.
+   * Cập nhật cache ngay (optimistic), đồng bộ lên server.
+   */
   set(key, value, options = {}) {
-    setLocalCache(key, value, true, 'optimistic-local');
-    // Persist the intended write immediately. This covers add/edit flows that
-    // replace a whole collection and then navigate away before Firestore returns.
-    return syncCollectionToFirestore(key, value, { allowDeletes: options.allowDeletes === true || _firstSnapshot[key] === true });
+    _setCache(key, value, 'optimistic-local');
+    _syncCollection(key, value, options.allowDeletes === true);
   },
 
   getSyncStatus() {
     return {
       ..._syncStatus,
-      teacherId: _teacherId,
+      teacherId:    _teacherId,
       firebaseReady: _firebaseReady,
-      firstSnapshot: { ..._firstSnapshot },
-      pendingWrites: _pendingDocWrites.length,
-      pendingDeletes: _pendingDeletes.length
+      serverSynced: _allServerSnapshotsReceived()
     };
   },
 
-  async loadStaticFallback() {
-    return loadStaticFallback('manual-static-fallback');
-  },
+  // ── Domain helpers ───────────────────────────────────────────────────────
 
   upsertStudent(obj) {
     const list = [...this.get('students')];
     const idx  = list.findIndex(s => s.id === obj.id);
-    const normalized = {
-      ...obj,
-      startDate: obj.startDate || toLocalDateStr(new Date())
-    };
+    const normalized = { ...obj, startDate: obj.startDate || toLocalDateStr(new Date()) };
     if (idx > -1) list[idx] = { ...list[idx], ...normalized };
     else list.push(normalized);
-    setLocalCache('students', list, true, 'optimistic-local');
-    return writeItemToFirestore('students', normalized);
+    _setCache('students', list, 'optimistic-local');
+    _writeDoc('students', normalized);
   },
 
   upsertSession(obj) {
     const list = [...this.get('sessions')];
     const idx  = list.findIndex(s => s.id === obj.id);
-    const nextSession = idx > -1 ? { ...list[idx], ...obj } : obj;
-    if (idx > -1) list[idx] = nextSession;
-    else list.push(nextSession);
-    setLocalCache('sessions', list, true, 'optimistic-local');
-    const writePromise = writeItemToFirestore('sessions', nextSession);
-    this.syncDebts(nextSession);
+    const next = idx > -1 ? { ...list[idx], ...obj } : obj;
+    if (idx > -1) list[idx] = next;
+    else list.push(next);
+    _setCache('sessions', list, 'optimistic-local');
+    _writeDoc('sessions', next);
+    this.syncDebts(next);
     this.reconcileDebts();
-    return writePromise;
   },
 
   syncDebts(sess) {
     let debts = [...this.get('debts')];
-    const planned = Number(sess.plannedSlots ?? sess.duration ?? 0);
-    const actual = Number(sess.actualSlots ?? (sess.status === 'taught' || sess.status === 'makeup' ? sess.duration : 0) ?? 0);
+    const planned   = Number(sess.plannedSlots ?? sess.duration ?? 0);
+    const actual    = Number(sess.actualSlots ?? ((sess.status === 'taught' || sess.status === 'makeup') ? sess.duration : 0) ?? 0);
     const debtSlots = Number(sess.debtSlots ?? calcDebtSlots(sess.status, planned, actual));
     const needsDebt = ['absent', 'busy', 'partial'].includes(sess.status) && debtSlots > 0;
-    const hasDebtIndex = debts.findIndex(d => d.sessionId === sess.id && !d.done);
-    const hasDebt = hasDebtIndex > -1 ? debts[hasDebtIndex] : null;
+    const existIdx  = debts.findIndex(d => d.sessionId === sess.id && !d.done);
+    const existing  = existIdx > -1 ? debts[existIdx] : null;
 
-    if (needsDebt && !hasDebt) {
-      debts.push({
-        id: uid(),
-        studentId: sess.studentId,
-        sessionId: sess.id,
-        date: sess.date,
-        slots: debtSlots,
-        originalSlots: debtSlots,
-        reason: sess.status,
-        done: false
-      });
+    if (needsDebt && !existing) {
+      debts.push({ id: uid(), studentId: sess.studentId, sessionId: sess.id, date: sess.date,
+        slots: debtSlots, originalSlots: debtSlots, reason: sess.status, done: false });
       this.set('debts', debts, { allowDeletes: true });
       return;
     }
-
-    if (needsDebt && hasDebt) {
-      debts[hasDebtIndex] = {
-        ...hasDebt,
-        studentId: sess.studentId,
-        date: sess.date,
-        slots: debtSlots,
-        originalSlots: debtSlots,
-        reason: sess.status,
-        done: debtSlots <= 0,
-      };
+    if (needsDebt && existing) {
+      debts[existIdx] = { ...existing, studentId: sess.studentId, date: sess.date,
+        slots: debtSlots, originalSlots: debtSlots, reason: sess.status, done: debtSlots <= 0 };
       this.set('debts', debts, { allowDeletes: true });
       return;
     }
-
-    if (!needsDebt && hasDebt) {
+    if (!needsDebt && existing) {
       debts = debts.filter(d => d.sessionId !== sess.id);
       this.set('debts', debts, { allowDeletes: true });
     }
@@ -673,31 +438,27 @@ const Store = {
   upsertReport(obj) {
     const list = [...(this.get('reports') || [])];
     const idx  = list.findIndex(r => r.id === obj.id || (
-      r.studentId === obj.studentId &&
-      r.type === obj.type &&
-      r.periodStart === obj.periodStart &&
-      r.periodEnd === obj.periodEnd
+      r.studentId === obj.studentId && r.type === obj.type &&
+      r.periodStart === obj.periodStart && r.periodEnd === obj.periodEnd
     ));
-    const now = new Date().toISOString();
+    const now  = new Date().toISOString();
     const next = {
       ...obj,
-      id: obj.id || (idx > -1 ? list[idx].id : uid()),
+      id:        obj.id || (idx > -1 ? list[idx].id : uid()),
       updatedAt: now,
       createdAt: obj.createdAt || (idx > -1 ? list[idx].createdAt : now),
     };
     if (idx > -1) list[idx] = { ...list[idx], ...next };
     else list.push(next);
-    setLocalCache('reports', list, true, 'optimistic-local');
-    writeItemToFirestore('reports', next);
+    _setCache('reports', list, 'optimistic-local');
+    _writeDoc('reports', next);
     return next;
   },
 
   getReport({ studentId, type, periodStart, periodEnd }) {
     return (this.get('reports') || []).find(r =>
-      r.studentId === studentId &&
-      r.type === type &&
-      r.periodStart === periodStart &&
-      r.periodEnd === periodEnd
+      r.studentId === studentId && r.type === type &&
+      r.periodStart === periodStart && r.periodEnd === periodEnd
     ) || null;
   },
 
@@ -711,98 +472,102 @@ const Store = {
     const oldDebts = this.get('debts') || [];
     const debtBySession = new Map(oldDebts.map(d => [d.sessionId, d]));
 
-    const baseDebts = sessions
-      .filter(sess => ['absent', 'busy', 'partial'].includes(sess.status))
-      .map(sess => {
-        const planned = Number(sess.plannedSlots ?? sess.duration ?? 0);
-        const actual = Number(sess.actualSlots ?? 0);
-        const need = calcDebtSlots(sess.status, planned, actual);
-        const old = debtBySession.get(sess.id);
+    const base = sessions
+      .filter(s => ['absent', 'busy', 'partial'].includes(s.status))
+      .map(s => {
+        const planned = Number(s.plannedSlots ?? s.duration ?? 0);
+        const actual  = Number(s.actualSlots ?? 0);
+        const need    = calcDebtSlots(s.status, planned, actual);
+        const old     = debtBySession.get(s.id);
         return {
           ...(old || {}),
-          id: old?.id || uid(),
-          studentId: sess.studentId,
-          sessionId: sess.id,
-          date: sess.date,
-          slots: need,
+          id:            old?.id || uid(),
+          studentId:     s.studentId,
+          sessionId:     s.id,
+          date:          s.date,
+          slots:         need,
           originalSlots: need,
-          reason: sess.status,
-          done: need <= 0,
+          reason:        s.status,
+          done:          need <= 0,
         };
       })
       .filter(d => Number(d.originalSlots || 0) > 0)
       .sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.id).localeCompare(String(b.id)));
 
-    const workingDebts = baseDebts.map(d => ({ ...d }));
-    const orderedSessions = [...sessions].sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.id).localeCompare(String(b.id)));
+    const working = base.map(d => ({ ...d }));
+    const ordered = [...sessions].sort((a, b) =>
+      String(a.date).localeCompare(String(b.date)) || String(a.id).localeCompare(String(b.id))
+    );
 
-    for (const sess of orderedSessions) {
-      const planned = Number(sess.plannedSlots ?? 0);
-      const actual = Number(sess.actualSlots ?? sess.duration ?? 0);
+    for (const sess of ordered) {
+      const planned    = Number(sess.plannedSlots ?? 0);
+      const actual     = Number(sess.actualSlots ?? sess.duration ?? 0);
       const makeupSlots = (sess.type === 'makeup' || sess.status === 'makeup')
         ? actual
         : Math.max(actual - planned, 0);
       let remain = Number(makeupSlots || 0);
       if (remain <= 0) continue;
 
-      for (const debt of workingDebts) {
+      for (const debt of working) {
         if (remain <= 0) break;
         if (debt.studentId !== sess.studentId) continue;
         if (debt.sessionId === sess.id) continue;
-        // Cho phép dạy bù trước: ca bù ở ngày sớm hơn vẫn được dùng để trừ
-        // cho khoản nợ phát sinh sau đó. Không chặn bằng điều kiện debt.date <= sess.date.
         if (Number(debt.slots || 0) <= 0 || debt.done) continue;
-
         const use = Math.min(Number(debt.slots || 0), remain);
         debt.slots = Math.max(Number(debt.slots || 0) - use, 0);
-        debt.done = debt.slots <= 0;
+        debt.done  = debt.slots <= 0;
         debt.lastMakeupSessionId = sess.id;
-        debt.lastMakeupDate = sess.date;
+        debt.lastMakeupDate      = sess.date;
         remain = Math.max(remain - use, 0);
       }
     }
 
-    const same = JSON.stringify(oldDebts) === JSON.stringify(workingDebts);
-    if (!same) this.set('debts', workingDebts, { allowDeletes: true });
-    return workingDebts;
+    if (JSON.stringify(oldDebts) !== JSON.stringify(working)) {
+      this.set('debts', working, { allowDeletes: true });
+    }
+    return working;
   },
+
+  // ── Event bus ────────────────────────────────────────────────────────────
 
   subscribe(event, cb) {
     if (!_listeners[event]) _listeners[event] = [];
     _listeners[event].push(cb);
-    return () => { _listeners[event] = _listeners[event].filter(f => f !== cb); };
+    return () => { _listeners[event] = (_listeners[event] || []).filter(f => f !== cb); };
   },
 
   emit(event, data) {
-    (_listeners[event] || []).forEach(cb => cb(data));
+    (_listeners[event] || []).forEach(cb => { try { cb(data); } catch (_) {} });
   }
 };
-// ── Shared utils ────────────────────────────────────────
-function uid() { return 'i' + Date.now() + Math.random().toString(36).slice(2,5); }
+
+// ── Shared utils (export dùng chung toàn app) ────────────────────────────────
+
+function uid() { return 'i' + Date.now() + Math.random().toString(36).slice(2, 5); }
 
 function avatarColor(name) {
   let h = 0;
-  for (const c of (name||'')) h = (h*31 + c.charCodeAt(0)) % AVATAR_COLORS.length;
+  for (const c of (name || '')) h = (h * 31 + c.charCodeAt(0)) % AVATAR_COLORS.length;
   return AVATAR_COLORS[h];
 }
 
 function initials(name) {
-  const p = (name||'').trim().split(' ');
-  return p[p.length-1].charAt(0).toUpperCase();
+  const p = (name || '').trim().split(' ');
+  return p[p.length - 1].charAt(0).toUpperCase();
 }
 
 function fmtDate(d) {
-  const DAYS = ['Chủ nhật','Thứ 2','Thứ 3','Thứ 4','Thứ 5','Thứ 6','Thứ 7'];
+  const DAYS = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
   const dt = new Date(d + 'T00:00:00');
-  return `${DAYS[dt.getDay()]}, ${dt.getDate()}/${dt.getMonth()+1}/${dt.getFullYear()}`;
+  return `${DAYS[dt.getDay()]}, ${dt.getDate()}/${dt.getMonth() + 1}/${dt.getFullYear()}`;
 }
 
 function fmtDateShort(d) {
   const dt = new Date(d + 'T00:00:00');
-  return `${dt.getDate()}/${dt.getMonth()+1}`;
+  return `${dt.getDate()}/${dt.getMonth() + 1}`;
 }
 
-function fmtMoney(n) { return (n||0).toLocaleString('vi-VN') + ' đ'; }
+function fmtMoney(n) { return (n || 0).toLocaleString('vi-VN') + ' đ'; }
 
 function toLocalDateStr(date = new Date()) {
   const y = date.getFullYear();
@@ -819,7 +584,7 @@ function age(dob) {
 }
 
 function statusLabel(s) {
-  return { taught:'Đã học', partial:'Học thiếu', absent:'Nghỉ', makeup:'Học bù', busy:'Cô bận' }[s] || '';
+  return { taught: 'Đã học', partial: 'Học thiếu', absent: 'Nghỉ', makeup: 'Học bù', busy: 'Cô bận' }[s] || '';
 }
 
 function calcDebtSlots(status, planned = 0, actual = 0) {
@@ -835,8 +600,9 @@ function getWeekRange(offset = 0) {
   mon.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1) + offset * 7);
   const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
   return {
-    start: toLocalDateStr(mon), end: toLocalDateStr(sun),
-    label: `${mon.getDate()}/${mon.getMonth()+1} – ${sun.getDate()}/${sun.getMonth()+1}`
+    start: toLocalDateStr(mon),
+    end:   toLocalDateStr(sun),
+    label: `${mon.getDate()}/${mon.getMonth() + 1} – ${sun.getDate()}/${sun.getMonth() + 1}`
   };
 }
 

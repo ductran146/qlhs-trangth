@@ -12,7 +12,7 @@ import {
   getWeekRange,
   toLocalDateStr,
   todayStr,
-} from '../shared/store.js?v=20260621-sync3';
+} from '../shared/store.js';
 
 const DAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 const FULL_WEEK_LABEL = 'Thứ 2 đến Chủ nhật';

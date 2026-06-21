@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Đăng nhập — Nhật ký can thiệp</title>
-<link rel="stylesheet" href="../shared/styles.css?v=20260621-sync3">
-<link rel="stylesheet" href="../shared/components.css?v=20260621-sync3">
+<link rel="stylesheet" href="../shared/styles.css">
+<link rel="stylesheet" href="../shared/components.css">
 </head>
 <body class="login-body">
 <main class="login-page">
@@ -34,7 +34,7 @@
 </main>
 
 <script type="module">
-  import { Auth } from '../shared/auth.js?v=20260621-sync3';
+  import { Auth } from '../shared/auth.js';
 
   await Auth.ready();
   if (Auth.isLoggedIn()) {

@@ -1,10 +1,10 @@
 /**
  * shared/auth.js
  * Firebase Authentication gate.
- * UI keeps the FC Sunday-style default account:
- *   user: trangth
- *   pass: 123456
- * Internally it maps to Firebase Auth email: trangth.140688@gmail.com
+ * UI keeps the default account: user trangth / pass 123456
+ * Internally maps to Firebase Auth email: trangth.140688@gmail.com
+ *
+ * v2: logout() gọi Store.reset() để xóa listeners + cache.
  */
 
 import {
@@ -12,7 +12,7 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut
-} from './firebase.js?v=20260621-sync3';
+} from './firebase.js';
 
 const RETURN_KEY = 'nkct_auth_return_to';
 
@@ -27,7 +27,7 @@ let _readyResolve;
 let _readyReject;
 const _readyPromise = new Promise((resolve, reject) => {
   _readyResolve = resolve;
-  _readyReject = reject;
+  _readyReject  = reject;
 });
 
 onAuthStateChanged(
@@ -42,12 +42,8 @@ onAuthStateChanged(
   }
 );
 
-function normalize(value) {
-  return String(value || '').trim();
-}
-
-function resolveEmail(username) {
-  const value = normalize(username);
+function _resolveEmail(username) {
+  const value = String(username || '').trim();
   if (value === DEFAULT_ACCOUNT.username) return DEFAULT_ACCOUNT.email;
   return value.includes('@') ? value : value;
 }
@@ -60,7 +56,7 @@ export const Auth = {
   },
 
   async login(username, password) {
-    const email = resolveEmail(username);
+    const email = _resolveEmail(username);
     try {
       await signInWithEmailAndPassword(auth, email, String(password || ''));
       return true;
@@ -70,19 +66,29 @@ export const Auth = {
     }
   },
 
+  /**
+   * Đăng xuất: reset Store trước để dọn listeners + cache, sau đó sign out Firebase.
+   */
   async logout() {
     localStorage.removeItem(RETURN_KEY);
+    // Reset Store (xóa Firestore listeners, in-memory cache, localStorage cache)
+    try {
+      const { Store } = await import('./store.js');
+      Store.reset();
+    } catch (_) {}
     await signOut(auth);
   },
 
   currentUser() {
     if (!_firebaseUser) return null;
     return {
-      uid: _firebaseUser.uid,
-      email: _firebaseUser.email,
-      username: _firebaseUser.email === DEFAULT_ACCOUNT.email ? DEFAULT_ACCOUNT.username : _firebaseUser.email,
+      uid:         _firebaseUser.uid,
+      email:       _firebaseUser.email,
+      username:    _firebaseUser.email === DEFAULT_ACCOUNT.email
+                     ? DEFAULT_ACCOUNT.username
+                     : _firebaseUser.email,
       displayName: DEFAULT_ACCOUNT.displayName,
-      teacherId: _firebaseUser.uid
+      teacherId:   _firebaseUser.uid
     };
   },
 
@@ -103,10 +109,8 @@ export const Auth = {
   async requireAuth() {
     await this.ready();
     if (this.isLoggedIn()) return true;
-
     const path = `${location.pathname}${location.search}${location.hash}`;
     this.setReturnTo(path);
-
     const isInPages = location.pathname.includes('/pages/');
     location.replace(isInPages ? 'login.html' : 'pages/login.html');
     return false;
