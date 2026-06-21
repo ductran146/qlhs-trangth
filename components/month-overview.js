@@ -3,7 +3,7 @@
  * Monthly snapshot for the first screen: totals, income, student progress and missing/makeup debts.
  * Used by: pages/checkin.html
  */
-import { Store, uid, avatarColor, initials, fmtMoney, todayStr, toLocalDateStr } from '../shared/store.js';
+import { Store, uid, avatarColor, initials, fmtMoney, todayStr, toLocalDateStr, displayName } from '../shared/store.js';
 
 const STATUS_META = {
   ok:      { tag: 'green',  label: 'Đúng tiến độ' },
@@ -201,7 +201,7 @@ function rowTemplate(row) {
       <div class="avatar sm" style="background:${avatarColor(st.name)}">${initials(st.name)}</div>
       <div class="month-student-info">
         <div class="month-student-main">
-          <strong>${escapeHTML(st.name)}</strong>
+          <strong>${escapeHTML(displayName(st))}</strong>
           <span class="tag ${meta.tag === 'violet' ? '' : meta.tag}">${meta.label}</span>
         </div>
         <div class="month-student-meta">
