@@ -5,7 +5,7 @@
  *
  * Used by: pages/students.html, pages/checkin.html
  */
-import { Store, uid, todayStr } from '../shared/store.js';
+import { Store, uid, todayStr } from '../shared/store.js?v=20260621-sync3';
 
 const DIFFICULTIES = ['Tự kỷ','Tăng động','Chậm nói','Chậm phát triển','Hội chứng Down','Khiếm thính','Khiếm thị','Khác'];
 const DAYS_SHORT   = ['CN','T2','T3','T4','T5','T6','T7'];
@@ -229,7 +229,8 @@ function _bindKeyboardAssist(el) {
   });
 }
 
-function _save(el) {
+async function _save(el) {
+  const saveBtn = el.querySelector('#smSave');
   const name = el.querySelector('#smName').value.trim();
   if (!name) { alert('Vui lòng nhập tên học sinh'); return; }
 
@@ -237,8 +238,7 @@ function _save(el) {
   const difficulties = [...el.querySelectorAll('.diff-chip.selected')].map(c => c.dataset.d);
 
   const startDate = _parseDateInput(el.querySelector('#smStartDate').value) || todayStr();
-
-  Store.upsertStudent({
+  const payload = {
     id: _editingId || uid(),
     name,
     dob:        _dobFromYear(el.querySelector('#smBirthYear').value),
@@ -253,11 +253,26 @@ function _save(el) {
     schedTime:  _parseTimeInput(el.querySelector('#smTime').value) || '08:00',
     duration:   +el.querySelector('#smDuration').value,
     feePerSlot: +el.querySelector('#smFee').value || 0,
-  });
+  };
 
-  close();
+  try {
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.dataset.originalText = saveBtn.textContent || 'Lưu học sinh';
+      saveBtn.textContent = 'Đang lưu...';
+    }
+    await Store.upsertStudent(payload);
+    close();
+  } catch (err) {
+    console.error('[student-modal] Save student failed:', err);
+    alert('Chưa lưu được học sinh lên Firebase. Vui lòng kiểm tra mạng, đăng nhập lại hoặc xem Console để biết lỗi.');
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = saveBtn.dataset.originalText || 'Lưu học sinh';
+    }
+  }
 }
-
 
 function _yearOptions() {
   const currentYear = new Date().getFullYear();

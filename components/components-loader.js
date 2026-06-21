@@ -8,7 +8,7 @@
  * - Avoid showing stale local/browser cache on Safari/Chrome.
  */
 
-const APP_VERSION = '20260621-sync2';
+const APP_VERSION = '20260621-sync3';
 const FAST_COMPONENTS = new Set(['bottom-nav', 'sidebar']);
 const DATA_COMPONENTS = new Set([
   'month-overview',

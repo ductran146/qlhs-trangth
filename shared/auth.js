@@ -12,7 +12,7 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut
-} from './firebase.js';
+} from './firebase.js?v=20260621-sync3';
 
 const RETURN_KEY = 'nkct_auth_return_to';
 

@@ -5,7 +5,7 @@
  *
  * Used by: pages/notes.html
  */
-import { Store, fmtDate, statusLabel } from '../shared/store.js';
+import { Store, fmtDate, statusLabel } from '../shared/store.js?v=20260621-sync3';
 
 export function render(el, dataset) {
   const sessionId = dataset.sessionId;

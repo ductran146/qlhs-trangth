@@ -9,7 +9,7 @@
 // Browser localStorage/IndexedDB is not used as initial data because Safari/Chrome
 // can keep stale cache per browser and make different devices show different data.
 
-const APP_VERSION = '20260621-sync2';
+const APP_VERSION = '20260621-sync3';
 const AVATAR_COLORS = ['#796EFF','#2ECC71','#FFB800','#FF2323','#02AAD8','#9D70F9','#08D1A0','#FF784E'];
 const COLLECTION_KEYS = ['students', 'sessions', 'debts', 'reports'];
 const BOOTSTRAP_KEY = 'nkct_bootstrap_state';
@@ -359,16 +359,30 @@ function updateFirestoreStatusFromSnapshot(snapshot) {
   }
 }
 
+async function ensureReadyForWrite() {
+  // Writes must wait for Auth + Firestore to be ready. Otherwise the new student
+  // only exists in this browser's optimistic memory and disappears on another
+  // browser/GitHub refresh.
+  if (_firebaseReady && _teacherId && _firebaseApi) return true;
+  await Store.init();
+  if (_firebaseReady && _teacherId && _firebaseApi) return true;
+  throw new Error('Chưa kết nối được Firebase. Vui lòng đăng nhập lại hoặc kiểm tra mạng.');
+}
+
 async function writeItemToFirestore(key, item) {
-  if (!item?.id) return;
+  if (!item?.id) return false;
   queuePendingDocWrite(key, item);
-  await flushPendingWrites();
+  await ensureReadyForWrite();
+  await flushPendingWrites({ throwOnError: true });
+  return true;
 }
 
 async function deleteItemFromFirestore(key, id) {
-  if (!id) return;
+  if (!id) return false;
   queuePendingDelete(key, id);
-  await flushPendingWrites();
+  await ensureReadyForWrite();
+  await flushPendingWrites({ throwOnError: true });
+  return true;
 }
 
 async function syncCollectionToFirestore(key, value, options = {}) {
@@ -392,7 +406,9 @@ async function syncCollectionToFirestore(key, value, options = {}) {
     }
   }
 
-  await flushPendingWrites();
+  await ensureReadyForWrite();
+  await flushPendingWrites({ throwOnError: true });
+  return true;
 }
 
 function setSyncError(message, err, options = {}) {
@@ -403,23 +419,53 @@ function setSyncError(message, err, options = {}) {
   if (options.staticFallback === true) loadStaticFallback(_syncStatus.error);
 }
 
-async function flushPendingWrites() {
-  if (!_firebaseReady || !_teacherId || !_firebaseApi || _isFlushingPendingWrites) return;
+async function flushPendingWrites(options = {}) {
+  if (!_firebaseReady || !_teacherId || !_firebaseApi || _isFlushingPendingWrites) return false;
   _isFlushingPendingWrites = true;
+  let ok = true;
+  let firstError = null;
   try {
     for (const entry of [..._pendingDocWrites]) {
-      if (!entry?.item?.id) continue;
-      await _firebaseApi.setDoc(teacherDoc(entry.key, entry.item.id), cleanForFirestore(entry.item), { merge: false })
-        .catch((err) => setSyncError(`[store] Write ${entry.key}/${entry.item.id} failed`, err));
+      if (!entry?.key || !entry?.item?.id) continue;
+      try {
+        await _firebaseApi.setDoc(teacherDoc(entry.key, entry.item.id), cleanForFirestore(entry.item), { merge: false });
+        const id = String(entry.item.id);
+        for (let i = _pendingDocWrites.length - 1; i >= 0; i--) {
+          const queued = _pendingDocWrites[i];
+          if (queued?.key === entry.key && String(queued?.item?.id) === id) _pendingDocWrites.splice(i, 1);
+        }
+        _optimisticDocs[entry.key]?.delete(id);
+        persistPendingQueues();
+      } catch (err) {
+        ok = false;
+        firstError = firstError || err;
+        setSyncError(`[store] Write ${entry.key}/${entry.item.id} failed`, err);
+      }
     }
+
     for (const entry of [..._pendingDeletes]) {
-      if (!entry?.id) continue;
-      await _firebaseApi.deleteDoc(teacherDoc(entry.key, entry.id))
-        .catch((err) => setSyncError(`[store] Delete ${entry.key}/${entry.id} failed`, err));
+      if (!entry?.key || !entry?.id) continue;
+      try {
+        await _firebaseApi.deleteDoc(teacherDoc(entry.key, entry.id));
+        const id = String(entry.id);
+        for (let i = _pendingDeletes.length - 1; i >= 0; i--) {
+          const queued = _pendingDeletes[i];
+          if (queued?.key === entry.key && String(queued?.id) === id) _pendingDeletes.splice(i, 1);
+        }
+        _optimisticDeletes[entry.key]?.delete(id);
+        persistPendingQueues();
+      } catch (err) {
+        ok = false;
+        firstError = firstError || err;
+        setSyncError(`[store] Delete ${entry.key}/${entry.id} failed`, err);
+      }
     }
   } finally {
     _isFlushingPendingWrites = false;
   }
+
+  if (!ok && options.throwOnError) throw firstError || new Error('Không ghi được dữ liệu lên Firebase.');
+  return ok;
 }
 
 function cleanForFirestore(value) {
@@ -536,7 +582,7 @@ const Store = {
     setLocalCache(key, value, true, 'optimistic-local');
     // Persist the intended write immediately. This covers add/edit flows that
     // replace a whole collection and then navigate away before Firestore returns.
-    syncCollectionToFirestore(key, value, { allowDeletes: options.allowDeletes === true || _firstSnapshot[key] === true });
+    return syncCollectionToFirestore(key, value, { allowDeletes: options.allowDeletes === true || _firstSnapshot[key] === true });
   },
 
   getSyncStatus() {
@@ -564,7 +610,7 @@ const Store = {
     if (idx > -1) list[idx] = { ...list[idx], ...normalized };
     else list.push(normalized);
     setLocalCache('students', list, true, 'optimistic-local');
-    writeItemToFirestore('students', normalized);
+    return writeItemToFirestore('students', normalized);
   },
 
   upsertSession(obj) {
@@ -574,9 +620,10 @@ const Store = {
     if (idx > -1) list[idx] = nextSession;
     else list.push(nextSession);
     setLocalCache('sessions', list, true, 'optimistic-local');
-    writeItemToFirestore('sessions', nextSession);
+    const writePromise = writeItemToFirestore('sessions', nextSession);
     this.syncDebts(nextSession);
     this.reconcileDebts();
+    return writePromise;
   },
 
   syncDebts(sess) {

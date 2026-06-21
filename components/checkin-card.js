@@ -5,7 +5,7 @@
  *
  * Used by: pages/checkin.html
  */
-import { Store, avatarColor, initials, age, fmtMoney, todayStr, uid } from '../shared/store.js';
+import { Store, avatarColor, initials, age, fmtMoney, todayStr, uid } from '../shared/store.js?v=20260621-sync3';
 
 export function render(el, dataset) {
   const studentId = dataset.studentId;
