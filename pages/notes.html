@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Nhật ký tuần — Nhật ký can thiệp</title>
-<link rel="stylesheet" href="../shared/styles.css">
-<link rel="stylesheet" href="../shared/components.css">
+<link rel="stylesheet" href="../shared/styles.css?v=20260621-sync2">
+<link rel="stylesheet" href="../shared/components.css?v=20260621-sync2">
 </head>
 <body>
 <div class="app-shell">
@@ -21,10 +21,10 @@
   <div data-component="bottom-nav" data-active="notes"></div>
 </div>
 
-<script src="../components/components-loader.js" type="module"></script>
+<script src="../components/components-loader.js?v=20260621-sync2" type="module"></script>
 
 <script type="module">
-import { Store, avatarColor, initials, fmtMoney, getWeekRange } from '../shared/store.js';
+import { Store, avatarColor, initials, fmtMoney, getWeekRange } from '../shared/store.js?v=20260621-sync2';
 
 const page = document.getElementById('pageNotes');
 let weekOffset = 0;
@@ -158,7 +158,7 @@ function bindGroups() {
 }
 
 async function loadSessionCards(scope = document) {
-  const { render: renderCard } = await import('../components/session-card.js');
+  const { render: renderCard } = await import('../components/session-card.js?v=20260621-sync2');
   scope.querySelectorAll('[data-component="session-card"]').forEach(el => {
     if (el.dataset.rendered === 'true') return;
     renderCard(el, { ...el.dataset });

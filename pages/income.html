@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Thu nhập — Nhật ký can thiệp</title>
-<link rel="stylesheet" href="../shared/styles.css">
-<link rel="stylesheet" href="../shared/components.css">
+<link rel="stylesheet" href="../shared/styles.css?v=20260621-sync2">
+<link rel="stylesheet" href="../shared/components.css?v=20260621-sync2">
 <style>
 .income-item {
   display: flex; align-items: center; gap: 12px;
@@ -36,10 +36,10 @@
   <div data-component="bottom-nav" data-active="income"></div>
 </div>
 
-<script src="../components/components-loader.js" type="module"></script>
+<script src="../components/components-loader.js?v=20260621-sync2" type="module"></script>
 
 <script type="module">
-import { Store, avatarColor, initials, fmtMoney } from '../shared/store.js';
+import { Store, avatarColor, initials, fmtMoney } from '../shared/store.js?v=20260621-sync2';
 
 const page = document.getElementById('pageIncome');
 let monthOffset = 0;
@@ -55,11 +55,10 @@ function render() {
   const mLabel = `Tháng ${month+1}/${year}`;
 
   const students = Store.get('students');
-  const studentIds = new Set(students.map(s => String(s.id)));
-  const monthSessions = Store.get('sessions')
-    .filter(s => studentIds.has(String(s.studentId)) && s.date >= mStart && s.date <= mEnd);
-  const taught   = monthSessions.filter(s => s.status === 'taught');
-  const absent   = monthSessions.filter(s => s.status === 'absent');
+  const taught   = Store.get('sessions')
+    .filter(s => s.status === 'taught' && s.date >= mStart && s.date <= mEnd);
+  const absent   = Store.get('sessions')
+    .filter(s => s.status === 'absent' && s.date >= mStart && s.date <= mEnd);
 
   let total = 0;
   const byStudent = {};
@@ -75,14 +74,12 @@ function render() {
   }
 
   const entries  = Object.values(byStudent);
-  const allDebts = Store.get('debts')
-    .filter(d => studentIds.has(String(d.studentId)) && !d.done);
+  const allDebts = Store.get('debts').filter(d => !d.done);
 
   page.innerHTML = `
     <div class="page-header">
       <div>
         <div class="page-title">Thu nhập</div>
-        <div class="page-sub">${mLabel}</div>
       </div>
     </div>
 
@@ -145,12 +142,7 @@ Store.subscribe('students', render);
 Store.subscribe('sessions', render);
 Store.subscribe('debts', render);
 Store.subscribe('*', render);
-
-(async () => {
-  const { Store: S } = await import('../shared/store.js');
-  await S.init();
-  render();
-})();
+render();
 </script>
 </body>
 </html>
