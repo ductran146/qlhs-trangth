@@ -2911,7 +2911,7 @@ textarea.ai-summary-textarea {
   color: var(--ds-field-text, #101013) !important;
   font-family: Inter, var(--font, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif) !important;
   font-size: 14px !important;
-  font-weight: 500 !important;
+  font-weight: 400 !important;
   line-height: 20px !important;
   outline: none !important;
   box-shadow: none !important;
