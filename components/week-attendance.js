@@ -113,7 +113,7 @@ function tableTemplate(students, dates, sessions) {
                 <div class="week-student-cell">
                   <div class="avatar sm" style="background:${avatarColor(st.name)}">${initials(st.name)}</div>
                   <div>
-                    <strong>${escapeHTML(st.name)}</strong>
+                    <strong>${escapeHTML(displayName(st))}</strong>
                     <span>Bắt đầu ${st.schedTime || '--:--'}</span>
                   </div>
                 </div>
@@ -136,7 +136,7 @@ function mobileTemplate(students, dates, sessions) {
             <button class="week-mobile-student week-mobile-student-toggle" type="button" data-action="toggle-week-student" data-student-id="${st.id}" aria-expanded="${isCollapsed ? 'false' : 'true'}">
               <div class="avatar sm" style="background:${avatarColor(st.name)}">${initials(st.name)}</div>
               <div class="week-mobile-student-info">
-                <strong>${escapeHTML(st.name)}</strong>
+                <strong>${escapeHTML(displayName(st))}</strong>
                 <span>Bắt đầu ${st.schedTime || '--:--'}</span>
               </div>
               <span class="week-mobile-student-arrow" aria-hidden="true">
