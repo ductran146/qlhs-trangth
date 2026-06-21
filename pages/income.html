@@ -64,13 +64,20 @@ function render() {
   const byStudent = {};
   for (const sess of taught) {
     const st = students.find(s => s.id === sess.studentId);
-    if (!st) continue;
-    const amt = (st.feePerSlot || 0) * sess.duration;
+    // Fallback: nếu học sinh đã bị xóa, dùng feePerSlot đã snapshot vào session
+    const fee = st?.feePerSlot || sess.feePerSlot || 0;
+    if (!fee && !st) continue;
+    const amt = fee * (Number(sess.actualSlots ?? sess.duration) || 0);
     total += amt;
-    if (!byStudent[st.id]) byStudent[st.id] = { student: st, count: 0, slots: 0, amt: 0 };
-    byStudent[st.id].count++;
-    byStudent[st.id].slots += sess.duration;
-    byStudent[st.id].amt   += amt;
+    const key = sess.studentId;
+    const displayName = st?.name || sess.studentName || '(Đã xóa)';
+    if (!byStudent[key]) byStudent[key] = {
+      student: st || { id: key, name: displayName, feePerSlot: fee },
+      count: 0, slots: 0, amt: 0
+    };
+    byStudent[key].count++;
+    byStudent[key].slots += Number(sess.actualSlots ?? sess.duration) || 0;
+    byStudent[key].amt   += amt;
   }
 
   const entries  = Object.values(byStudent);
@@ -84,9 +91,9 @@ function render() {
     </div>
 
     <div class="month-nav">
-      <button class="icon-btn" id="btnPrevMonth">‹</button>
+      <button class="icon-btn" id="btnPrevMonth"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M15 6C15 6 9.00001 10.4189 9 12C8.99999 13.5812 15 18 15 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <span class="week-lbl">${mLabel}</span>
-      <button class="icon-btn" id="btnNextMonth">›</button>
+      <button class="icon-btn" id="btnNextMonth"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9.00005 6C9.00005 6 15 10.4189 15 12C15 13.5812 9 18 9 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </div>
 
     <div class="income-hero">

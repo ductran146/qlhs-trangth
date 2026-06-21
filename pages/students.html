@@ -20,7 +20,7 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  padding: 16px;
+  padding: 12px 12px;
   margin-bottom: 10px;
   display: flex; align-items: flex-start; gap: 12px;
   box-shadow: var(--sh); cursor: pointer;
@@ -31,7 +31,7 @@
 .student-body { flex: 1; min-width: 0; }
 .student-name { font-size: 17px; font-weight: 700; line-height: 1.25; }
 .student-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
-.student-goal { font-size: 14px; color: var(--ink-2); margin-top: 8px; line-height: 1.35; }
+.student-goal { font-size: 14px; color: var(--ink-2); margin-top: 16px; line-height: 1.35; }
 .student-sched { font-size: 12px; color: var(--ink-3); margin-top: 5px; }
 .student-actions { display: flex; gap: 6px; align-self: center; margin-left: 8px; }
 .student-parent { font-size: 12px; color: var(--ink-2); margin-top: 5px; line-height: 1.4; }
@@ -143,6 +143,31 @@
   border-radius: var(--r-lg);
   box-shadow: var(--sh);
 }
+
+/* Delete confirm dialog */
+.delete-backdrop {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(16,16,19,.45);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.delete-dialog {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  padding: 24px;
+  max-width: 360px; width: 100%;
+  box-shadow: 0 8px 32px rgba(0,0,0,.18);
+}
+.delete-dialog-icon {
+  width: 44px; height: 44px; border-radius: 50%;
+  background: rgba(220,38,38,.1);
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 14px;
+  font-family: var(--emoji-font, 'TossFace', 'Apple Color Emoji', sans-serif);
+}
+.delete-dialog h3 { font-size: 17px; font-weight: 700; margin: 0 0 8px; }
+.delete-dialog p  { font-size: 14px; color: var(--ink-2); margin: 0 0 20px; line-height: 1.5; }
+.delete-dialog-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
 @media (max-width: 640px) {
   .student-toolbar { grid-template-columns: 1fr; gap: 8px; }
   .student-search,
@@ -248,6 +273,7 @@ function render() {
         </div>
         <div class="student-actions">
           <button class="btn btn-outline btn-sm" data-edit="${st.id}">Sửa</button>
+          <button class="btn btn-sm" style="color:var(--red-d,#dc2626);border-color:var(--red-l,#fecaca);background:transparent;" data-delete="${st.id}" data-delete-name="${escapeAttr(st.name)}">Xóa</button>
         </div>
       </div>`;
   }
@@ -327,6 +353,14 @@ function render() {
       window.StudentModal?.open(btn.dataset.edit);
     });
   });
+
+  // Bind delete buttons
+  page.querySelectorAll('[data-delete]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      confirmDeleteStudent(btn.dataset.delete, btn.dataset.deleteName);
+    });
+  });
 }
 
 Store.subscribe('students', render);
@@ -334,6 +368,60 @@ Store.subscribe('sessions', render);
 Store.subscribe('debts', render);
 render();
 
+
+function confirmDeleteStudent(studentId, studentName) {
+  // Xóa backdrop cũ nếu có
+  document.querySelector('.delete-backdrop')?.remove();
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'delete-backdrop';
+  backdrop.innerHTML = `
+    <div class="delete-dialog" role="dialog" aria-modal="true" aria-labelledby="deleteDialogTitle">
+      <div class="delete-dialog-icon"><span class="emoji" style="font-size:22px;line-height:1;" aria-hidden="true">🗑️</span></div>
+      <h3 id="deleteDialogTitle">Xóa học sinh?</h3>
+      <p>Xóa <strong>${studentName}</strong> khỏi danh sách.<br>
+      Lịch sử buổi học và <strong>thu nhập vẫn được giữ lại</strong>.<br>
+      Thao tác này không thể hoàn tác.</p>
+      <div class="delete-dialog-actions">
+        <button class="btn btn-outline btn-sm" id="cancelDelete">Hủy</button>
+        <button class="btn btn-sm" style="background:var(--red-d,#dc2626);color:#fff;border:none;" id="confirmDelete">Xóa học sinh</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(backdrop);
+
+  document.getElementById('cancelDelete').addEventListener('click', () => backdrop.remove());
+  backdrop.addEventListener('click', e => { if (e.target === backdrop) backdrop.remove(); });
+
+  document.getElementById('confirmDelete').addEventListener('click', () => {
+    deleteStudentKeepIncome(studentId);
+    backdrop.remove();
+  });
+}
+
+function deleteStudentKeepIncome(studentId) {
+  // Bước 1: Snapshot feePerSlot của học sinh vào từng session
+  // để income page vẫn tính được tiền dù student không còn
+  const student = Store.get('students').find(s => s.id === studentId);
+  const feePerSlot = student?.feePerSlot || 0;
+
+  if (feePerSlot > 0) {
+    const sessions = Store.get('sessions');
+    const updated = sessions.map(s => {
+      if (s.studentId !== studentId || s.feePerSlot != null) return s;
+      return { ...s, feePerSlot };
+    });
+    Store.set('sessions', updated);
+  }
+
+  // Bước 2: Xóa debts của học sinh
+  const debts = Store.get('debts').filter(d => d.studentId !== studentId);
+  Store.set('debts', debts, { allowDeletes: true });
+
+  // Bước 3: Xóa học sinh
+  const students = Store.get('students').filter(s => s.id !== studentId);
+  Store.set('students', students, { allowDeletes: true });
+}
 
 function getFilteredStudents(students) {
   const q = normalizeText(state.query);

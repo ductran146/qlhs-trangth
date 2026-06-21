@@ -9,10 +9,11 @@ import { Store, fmtDate, statusLabel } from '../shared/store.js';
 
 export function render(el, dataset) {
   const sessionId = dataset.sessionId;
-  _render(el, sessionId);
+  const hideName  = dataset.hideName === 'true';
+  _render(el, sessionId, hideName);
 }
 
-function _render(el, sessionId) {
+function _render(el, sessionId, hideName = false) {
   const sess = Store.get('sessions').find(s => s.id === sessionId);
   if (!sess) { el.innerHTML = ''; return; }
 
@@ -31,9 +32,9 @@ function _render(el, sessionId) {
         <div class="sc-dot" style="background:${dotColor}"></div>
         <div class="sc-info">
           <div class="sc-name">
-            ${st ? st.name : '—'}
+            ${hideName ? (fmtDate(sess.date)) : (st ? st.name : '—')}
           </div>
-          <div class="sc-date">
+          <div class="sc-date" ${hideName ? 'hidden' : ''}>
             ${fmtDate(sess.date)} · ${sess.startTime || '--:--'}
           </div>
         </div>
@@ -41,7 +42,7 @@ function _render(el, sessionId) {
           <span class="tag ${sess.status === 'taught' ? 'green' : 'red'}">
             ${statusLabel(sess.status) || 'Chưa điểm danh'}
           </span>
-          <span class="sc-chevron">${hasNote ? '▾' : '▸'}</span>
+          <span class="sc-chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9.00005 6C9.00005 6 15 10.4189 15 12C15 13.5812 9 18 9 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
         </div>
       </div>
 
@@ -80,7 +81,7 @@ function _render(el, sessionId) {
 
   el.querySelector('[data-action="toggle"]').addEventListener('click', () => {
     body.classList.toggle('open');
-    chevron.textContent = body.classList.contains('open') ? '▾' : '▸';
+    chevron.classList.toggle('open', body.classList.contains('open'));
   });
 
   el.querySelector('[data-action="edit-notes"]')?.addEventListener('click', (event) => {
@@ -88,7 +89,7 @@ function _render(el, sessionId) {
     body.classList.add('open');
     el.querySelector('.session-note-form')?.removeAttribute('hidden');
     el.querySelector('[data-action="save-notes"]')?.removeAttribute('hidden');
-    chevron.textContent = '▾';
+    chevron.classList.add('open');
   });
 
   el.querySelector('[data-action="save-notes"]')?.addEventListener('click', (event) => {

@@ -15,6 +15,16 @@ const STATUS_META = {
 let lastRows = [];
 
 export function render(el) {
+  if (!el._monthOverviewSubscribed) {
+    el._monthOverviewSubscribed = true;
+    Store.subscribe('sessions', () => _draw(el));
+    Store.subscribe('students', () => _draw(el));
+    Store.subscribe('debts', () => _draw(el));
+  }
+  _draw(el);
+}
+
+function _draw(el) {
   const students = Store.get('students');
   const sessions = Store.get('sessions');
   const allDebts = typeof Store.reconcileDebts === 'function' ? Store.reconcileDebts() : Store.get('debts');
@@ -211,7 +221,7 @@ function buildStatusControl(row) {
     return `<span>Nợ ${formatNumber(row.debtSlots)} ca bù</span>`;
   }
   if (row.pendingSlots > 0) {
-    return `<button type="button" class="month-pending-link" data-student-id="${escapeAttr(row.student.id)}">Chưa chấm ${formatNumber(row.pendingSlots)} ca</button>`;
+    return `<button type="button" class="month-pending-link" data-student-id="${escapeAttr(row.student.id)}">Chưa chấm ${formatNumber(row.pendingSlots)} ca<svg class="pending-arrow" width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M2.5 6.5H10.5M10.5 6.5L7 3M10.5 6.5L7 10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`;
   }
   return `<span>Không nợ ca bù</span>`;
 }

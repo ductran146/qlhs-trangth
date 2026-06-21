@@ -18,14 +18,15 @@ const DAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 const FULL_WEEK_LABEL = 'Thứ 2 đến Chủ nhật';
 const SLOT_OPTIONS = [0, 0.5, 1, 1.5, 2];
 const STATUS_META = {
-  pending: { label: 'Chưa chấm', short: 'Chưa', tone: 'pending' },
-  off:     { label: 'Không lịch', short: 'Không', tone: 'off' },
-  prestart:{ label: 'Chưa học', short: 'Chưa học', tone: 'prestart' },
-  taught:  { label: 'Đã học đủ', short: 'Đủ', tone: 'taught' },
-  partial: { label: 'Học thiếu', short: 'Thiếu', tone: 'partial' },
-  absent:  { label: 'Nghỉ', short: 'Nghỉ', tone: 'absent' },
-  busy:    { label: 'Cô bận', short: 'Bận', tone: 'busy' },
-  makeup:  { label: 'Dạy bù', short: 'Bù', tone: 'makeup' },
+  pending:  { label: 'Chưa chấm', short: 'Chưa',    tone: 'pending'  },
+  upcoming: { label: 'Sắp tới',   short: 'Sắp tới',  tone: 'upcoming' },
+  off:      { label: 'Không lịch',short: 'Không',    tone: 'off'      },
+  prestart: { label: 'Chưa học',  short: 'Chưa học', tone: 'prestart' },
+  taught:   { label: 'Đã học đủ', short: 'Đủ',       tone: 'taught'   },
+  partial:  { label: 'Học thiếu', short: 'Thiếu',    tone: 'partial'  },
+  absent:   { label: 'Nghỉ',      short: 'Nghỉ',     tone: 'absent'   },
+  busy:     { label: 'Cô bận',    short: 'Bận',      tone: 'busy'     },
+  makeup:   { label: 'Dạy bù',    short: 'Bù',       tone: 'makeup'   },
 };
 
 let weekOffset = 0;
@@ -45,14 +46,14 @@ export function render(el) {
 function draw(el) {
   const week = getWeekRange(weekOffset);
   const dates = getWeekDates(week.start);
-  const students = Store.get('students');
+  const students = Store.get('students').filter(st => st.status !== 'inactive' && st.status !== 'stopped');
   const sessions = Store.get('sessions');
   const allDebts = typeof Store.reconcileDebts === 'function' ? Store.reconcileDebts() : Store.get('debts');
   const debts = allDebts.filter(d => !d.done);
 
   const cells = buildCells(students, dates, sessions);
   const scheduledCells = cells.filter(c => c.scheduled);
-  const pendingCount = scheduledCells.filter(c => !c.session?.status).length;
+  const pendingCount = scheduledCells.filter(c => !c.session?.status && !isFutureDate(c.date.str)).length;
   const taughtCount = cells.filter(c => isAttended(c.session)).length;
   const actualSlots = cells.reduce((sum, c) => sum + getActualSlots(c.session), 0);
   const activeStudentCount = students.length;
@@ -68,11 +69,11 @@ function draw(el) {
         </div>
 
         <div class="week-attendance-toolbar">
-          <button class="icon-btn" data-action="prev-week" aria-label="Tuần trước">‹</button>
+          <button class="icon-btn" data-action="prev-week" aria-label="Tuần trước"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M15 6C15 6 9.00001 10.4189 9 12C8.99999 13.5812 15 18 15 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
           <div class="week-attendance-summary">
             <strong>Tuần ${week.label}</strong>
           </div>
-          <button class="icon-btn" data-action="next-week" aria-label="Tuần sau">›</button>
+          <button class="icon-btn" data-action="next-week" aria-label="Tuần sau"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9.00005 6C9.00005 6 15 10.4189 15 12C15 13.5812 9 18 9 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         </div>
         <div class="week-attendance-meta">
           <span>${activeStudentCount} bé đang dạy</span>
@@ -139,7 +140,7 @@ function mobileTemplate(students, dates, sessions) {
                 <span>Bắt đầu ${st.schedTime || '--:--'}</span>
               </div>
               <span class="week-mobile-student-arrow" aria-hidden="true">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="transform:rotate(90deg)"><path d="M9.00005 6C9.00005 6 15 10.4189 15 12C15 13.5812 9 18 9 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </span>
             </button>
             <div class="week-calendar-grid" role="group" aria-label="Lịch chấm công tuần của ${escapeHTML(st.name)}" ${isCollapsed ? 'hidden' : ''}>
@@ -191,12 +192,17 @@ function mobileCalendarCellTemplate(cell) {
 
 function getCellView(cell) {
   if (cell.preStart) {
-    return { ...STATUS_META.prestart, meta: 'Trước ngày bắt đầu', mobileMeta: '' };
+    return { ...STATUS_META.prestart, meta: '', mobileMeta: '' };
   }
   const future = isFutureDate(cell.date.str);
-  const sess = future ? null : cell.session;
+  if (future) {
+    return cell.scheduled
+      ? { ...STATUS_META.upcoming, meta: '', mobileMeta: '' }
+      : { ...STATUS_META.off, meta: '', mobileMeta: '' };
+  }
+  const sess = cell.session;
   if (!sess?.status) {
-    return cell.scheduled ? { ...STATUS_META.pending, meta: '', mobileMeta: '' } : { ...STATUS_META.off, meta: 'Không lịch', mobileMeta: '' };
+    return cell.scheduled ? { ...STATUS_META.pending, meta: '', mobileMeta: '' } : { ...STATUS_META.off, meta: '', mobileMeta: '' };
   }
 
   const status = getVisualStatus(sess);

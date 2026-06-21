@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Import Students</title></head>
+<body>
+<h2>Importing students...</h2>
+<div id="log"></div>
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
+import { getFirestore, doc, setDoc } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import { getAuth, signInWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
+
+const firebaseConfig = {
+  apiKey: 'AIzaSyCZBDBqqv4oXfiVI8HrN5gXzAGfGxWVPLs',
+  authDomain: 'qlhs-trangth-canthiep.firebaseapp.com',
+  projectId: 'qlhs-trangth-canthiep',
+  storageBucket: 'qlhs-trangth-canthiep.firebasestorage.app',
+  messagingSenderId: '799840668287',
+  appId: '1:799840668287:web:f8d4598042d8ab36094d4a'
+};
+
+const app  = initializeApp(firebaseConfig);
+const db   = getFirestore(app);
+const auth = getAuth(app);
+
+const TEACHER_ID = 'axATkmwKWiWv1hxhJI9oJKyc8ik1';
+
+const students = [
+  { id: 'st_khang',  name: 'Khang',  schedTime: '07:30', duration: 0.5, schedDays: [1,2,3,4,5,6], startDate: '2026-06-01', feePerSlot: 110000, status: 'active' },
+  { id: 'st_gau',    name: 'Gấu',    schedTime: '08:00', duration: 1,   schedDays: [1,2,3,4,5,6], startDate: '2026-06-01', feePerSlot: 110000, status: 'active' },
+  { id: 'st_chi',    name: 'Chi',    schedTime: '09:00', duration: 1,   schedDays: [1,2,3,4,5,6], startDate: '2026-06-01', feePerSlot: 110000, status: 'active' },
+  { id: 'st_so',     name: 'Sồ',     schedTime: '10:00', duration: 1,   schedDays: [1,2,3,4,5,6], startDate: '2026-06-01', feePerSlot: 110000, status: 'active' },
+  { id: 'st_trang',  name: 'Trang',  schedTime: '11:20', duration: 1,   schedDays: [1,2,3,4,5,6], startDate: '2026-06-01', feePerSlot: 110000, status: 'active' },
+  { id: 'st_thien',  name: 'Thiện',  schedTime: '12:20', duration: 1,   schedDays: [1,2,3,4,5,6], startDate: '2026-06-01', feePerSlot: 110000, status: 'active' },
+];
+
+const log = document.getElementById('log');
+function addLog(msg, color = 'black') {
+  const p = document.createElement('p');
+  p.style.color = color;
+  p.textContent = msg;
+  log.appendChild(p);
+}
+
+async function run() {
+  try {
+    addLog('Đang đăng nhập...');
+    await signInWithEmailAndPassword(auth, 'trangth.140688@gmail.com', '123456');
+    addLog('✅ Đăng nhập thành công', 'green');
+
+    for (const st of students) {
+      const ref = doc(db, 'teachers', TEACHER_ID, 'students', st.id);
+      await setDoc(ref, st);
+      addLog(`✅ Đã thêm: ${st.name} (${st.schedTime}, ${st.duration} ca/buổi)`, 'green');
+    }
+
+    addLog('🎉 Hoàn tất! Tất cả 6 học sinh đã được nhập.', 'blue');
+  } catch (err) {
+    addLog('❌ Lỗi: ' + err.message, 'red');
+  }
+}
+
+run();
+</script>
+</body>
+</html>
