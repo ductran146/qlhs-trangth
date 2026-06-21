@@ -344,124 +344,163 @@ function valueOfReport(mode) {
 }
 
 
-// ── AI Report Generation (Claude API) ────────────────────────────────────────
+// ── AI tạo nhận xét (Local engine) ──────────────────────────────────────────
 
-async function aiGenerateReport({ mode, st, sessions, label, weekReports, textarea, btn }) {
-  if (!textarea || !btn) return;
+const KW_MAP = {
+  tienbo:    ['tien bo','tien bo tot','tien bo nhieu','cai thien','tiến bộ','có tiến bộ','tốt hơn','khá hơn'],
+  hoatac:    ['hop tac','hop tac hon','nghe loi','nghe co','hợp tác','nghe lời','ít chống','dễ bảo','phối hợp'],
+  taptrung:  ['tap trung','chu y','ngoi yen','tập trung','chú ý','ít mất','bớt mất','ngồi yên'],
+  phatam:    ['phat am','noi ro','dau hoi','dau nga','dau sac','phát âm','nói rõ','dấu hỏi','dấu ngã','dấu sắc','bắt đầu nói'],
+  giaotiep:  ['giao tiep','mat nhin','giao tiếp','mắt nhìn','nhìn cô','tương tác','tiếp xúc mắt'],
+  camxuc:    ['cam xuc','it khoc','bot khoc','it cau','cảm xúc','ít khóc','bớt khóc','ít cáu','bớt cáu','vui vẻ','hào hứng'],
+  nhanhinh:  ['nhan biet','hieu bai','ghi nho','nhan thuc','nhận biết','hiểu bài','ghi nhớ','làm được','hoàn thành'],
+  canren:    ['can luyen','can ren','con can','van can','cần luyện','cần rèn','còn cần','vẫn cần','chưa ổn','cần thêm','nhắc lại'],
+  canren_hv: ['hay khoc','hay cau','hay giat','phan khang','hay khóc','hay cáu','hay giật','phản kháng','chống đối','mất tập trung nhiều'],
+  phhome:    ['nhac phu huynh','luyen o nha','ba me','gia dinh','nhắc phụ huynh','luyện ở nhà','ba mẹ','gia đình'],
+};
 
-  // Lấy từ khóa người dùng đã nhập vào textarea (nếu có)
-  const userKeywords = textarea.value.trim();
-
-  // Thu thập nhận xét từng ngày
-  const taught = sessions.filter(s =>
-    s.status === 'taught' || s.status === 'partial' ||
-    s.status === 'makeup' || s.type === 'makeup'
-  );
-  const sessionNotes = sessions
-    .map(s => {
-      const note = sessionNoteText(s);
-      if (!note) return null;
-      const d = new Date(s.date + 'T00:00:00');
-      const day = ['Chủ nhật','Thứ 2','Thứ 3','Thứ 4','Thứ 5','Thứ 6','Thứ 7'][d.getDay()];
-      return `${day} ${fmtDatePlain(s.date)}: ${note}`;
-    })
-    .filter(Boolean);
-
-  const totalSlots = taught.reduce((a, s) => a + actualSlots(s), 0);
-  const absentCount = sessions.filter(s => s.status === 'absent').length;
-  const busyCount = sessions.filter(s => s.status === 'busy').length;
-
-  // Build data context
-  let dataContext = '';
-  if (mode === 'week') {
-    dataContext = [
-      `Tên bé: ${st.name}`,
-      `Kỳ: ${label}`,
-      `Tổng ca đã học: ${totalSlots}`,
-      absentCount ? `Số buổi bé nghỉ: ${absentCount}` : '',
-      busyCount ? `Số buổi cô bận: ${busyCount}` : '',
-      sessionNotes.length ? `\nNhận xét từng buổi:\n${sessionNotes.join('\n')}` : '',
-      userKeywords ? `\nTừ khóa / gợi ý thêm từ giáo viên: ${userKeywords}` : '',
-    ].filter(Boolean).join('\n');
-  } else {
-    const weekTexts = weekReports.map(r => r.content).filter(Boolean);
-    dataContext = [
-      `Tên bé: ${st.name}`,
-      `Kỳ: ${label}`,
-      `Tổng ca đã học trong tháng: ${totalSlots}`,
-      absentCount ? `Số buổi bé nghỉ: ${absentCount}` : '',
-      weekTexts.length ? `\nNhận xét theo tuần:\n${weekTexts.join('\n---\n')}` : '',
-      sessionNotes.length ? `\nNhận xét từng buổi:\n${sessionNotes.join('\n')}` : '',
-      userKeywords ? `\nTừ khóa / gợi ý thêm từ giáo viên: ${userKeywords}` : '',
-    ].filter(Boolean).join('\n');
+function _detectTopics(text) {
+  const s = text.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g,'d');
+  const found = {};
+  for (const [topic, kws] of Object.entries(KW_MAP)) {
+    if (kws.some(kw => {
+      const k = kw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d');
+      return s.includes(k);
+    })) found[topic] = true;
   }
+  return found;
+}
 
-  if (!sessionNotes.length && !weekReports.length) {
-    alert('Chưa có nhận xét nào để tạo báo cáo.');
+function _pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function aiGenerateReport({ mode, st, sessions, label, weekReports, textarea, btn }) {
+  if (!textarea || !btn) return;
+  const userKW    = textarea.value.trim();
+  const taught    = sessions.filter(s => s.status==='taught'||s.status==='partial'||s.status==='makeup'||s.type==='makeup');
+  const totalSlots = taught.reduce((a,s) => a + actualSlots(s), 0);
+  const absentCount = sessions.filter(s => s.status==='absent').length;
+  const noteTexts = sessions.map(s => sessionNoteText(s)).filter(Boolean).join(' ');
+  const allText   = [noteTexts, userKW].filter(Boolean).join(' ');
+  const name      = st?.name || 'bé';
+  const isTuan    = mode === 'week';
+
+  if (!allText && !totalSlots) {
+    alert('Chưa có dữ liệu. Vui lòng nhập nhận xét từng buổi hoặc từ khóa.');
     return;
   }
 
-  // UI loading
-  const originalHTML = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = '<span style="opacity:.6">Đang tạo...</span>';
-  textarea.value = '';
-  textarea.placeholder = 'AI đang viết nhận xét...';
+  const T = _detectTopics(allText);
+  const hasPos = T.tienbo||T.hoatac||T.taptrung||T.phatam||T.giaotiep||T.camxuc||T.nhanhinh;
+  const ss = [];
 
-  const systemPrompt = `Bạn là một giáo viên can thiệp sớm cho trẻ đặc biệt tại Việt Nam.
-Nhiệm vụ: viết nhận xét ${mode === 'week' ? 'tuần' : 'tháng'} gửi phụ huynh.
-
-Quy tắc bắt buộc:
-- Viết bằng tiếng Việt, giọng nhẹ nhàng, chân thật như giáo viên tự viết tay — KHÔNG dùng từ ngữ hoa mỹ, sáo rỗng.
-- Độ dài: ${mode === 'week' ? '3–5 câu' : '5–7 câu'}. Không dùng gạch đầu dòng, không chia section.
-- Bắt đầu bằng tình hình học tập cụ thể trong ${mode === 'week' ? 'tuần' : 'tháng'}.
-- Nêu 1–2 điểm tiến bộ hoặc điểm cần chú ý dựa trên nhận xét thực tế.
-- Kết thúc bằng 1 câu định hướng tuần/tháng tới hoặc gợi ý cho phụ huynh — ngắn gọn, thực tế.
-- Nếu có từ khóa từ giáo viên, lồng ghép tự nhiên vào bài.
-- Không bịa thêm thông tin không có trong dữ liệu.
-- Không bắt đầu bằng "Kính gửi" hay lời chào.`;
-
-  try {
-    // Encode payload thành base64 để bypass WAF
-    const rawPayload = JSON.stringify({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1000,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: dataContext }],
-    });
-    const encodedPayload = btoa(unescape(encodeURIComponent(rawPayload)));
-    const response = await fetch('https://fotmob-proxy.ductrangdesign.workers.dev/nxhs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: encodedPayload,
-    });
-
-    const data = await response.json();
-    const text = data.content?.find(b => b.type === 'text')?.text?.trim() || '';
-
-    if (text) {
-      textarea.value = text;
-      textarea.placeholder = '';
-      textarea.focus();
-      // Highlight textarea nhẹ
-      textarea.style.borderColor = 'var(--violet)';
-      setTimeout(() => { textarea.style.borderColor = ''; }, 1500);
-    } else {
-      throw new Error(data.error?.message || 'Không có phản hồi từ AI');
-    }
-  } catch (err) {
-    console.error('AI error:', err);
-    // Fallback về template cũ
-    const fallback = mode === 'week'
-      ? generateWeekSummary(st, sessions, label)
-      : generateMonthSummary(st, sessions, weekReports, label);
-    textarea.value = fallback;
-    textarea.placeholder = '';
-    alert('AI tạm thời không khả dụng. Đã dùng bản tổng hợp tự động.');
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = originalHTML;
+  // Mở đầu
+  if (hasPos) {
+    ss.push(_pick([
+      `Trong ${isTuan?'tuần':'tháng'} ${label}, ${name} đã có những buổi học khá tích cực.`,
+      `${isTuan?'Tuần':'Tháng'} ${label}, cô nhận thấy ${name} có một số tiến bộ đáng ghi nhận.`,
+      `Qua ${isTuan?'tuần':'tháng'} ${label}, ${name} có những cải thiện tích cực mà cô muốn chia sẻ với ba mẹ.`,
+    ]));
+  } else {
+    ss.push(_pick([
+      `Trong ${isTuan?'tuần':'tháng'} ${label}, ${name} đã học được ${totalSlots} ca cùng cô.`,
+      `${isTuan?'Tuần':'Tháng'} ${label}, cô và ${name} đã cùng nhau học ${totalSlots} ca.`,
+    ]));
   }
+
+  // Tiến bộ + Hợp tác
+  if (T.tienbo && T.hoatac) {
+    ss.push(_pick([
+      `Bé tiến bộ rõ rệt và hợp tác với cô tốt hơn so với trước, cô rất vui.`,
+      `Cô thấy ${name} ngoan hơn, chịu phối hợp và đang trên đà tiến bộ đáng mừng.`,
+    ]));
+  } else if (T.tienbo) {
+    ss.push(_pick([
+      `Cô nhận thấy bé có tiến bộ ở một số hoạt động, đây là điều cô rất vui.`,
+      `${name} đang có những cải thiện tích cực trong quá trình học cùng cô.`,
+    ]));
+  } else if (T.hoatac) {
+    ss.push(_pick([
+      `Điểm đáng khen là ${name} đã hợp tác với cô tốt hơn, dễ bảo hơn so với trước.`,
+      `Bé chịu nghe lời và phối hợp cùng cô trong các hoạt động, cô rất vui.`,
+    ]));
+  }
+
+  if (T.taptrung) {
+    ss.push(_pick([
+      `Khả năng tập trung của bé có cải thiện, bé ngồi học được lâu hơn và ít phân tâm hơn.`,
+      `${name} chú ý hơn trong giờ học, điều này giúp bé tiếp thu tốt hơn.`,
+    ]));
+  }
+
+  // Phát âm — trích dấu cụ thể nếu có
+  if (T.phatam) {
+    const dauMatch = allText.match(/dấu\s+\S+/gi);
+    if (dauMatch) {
+      const daus = [...new Set(dauMatch)].join(', ');
+      ss.push(_pick([
+        `Đặc biệt, bé đã bắt đầu phát âm được ${daus} — đây là tiến bộ cô rất vui khi thấy.`,
+        `${name} đã phát âm được ${daus}, tuy chưa thật ổn định nhưng đây là bước tiến đáng mừng.`,
+      ]));
+    } else {
+      ss.push(_pick([
+        `Khả năng phát âm của bé có cải thiện, bé nói rõ hơn và cô hiểu bé muốn diễn đạt gì.`,
+        `Bé bắt đầu nói được nhiều hơn và phát âm rõ ràng hơn trong một số hoạt động.`,
+      ]));
+    }
+  }
+
+  if (T.giaotiep) {
+    ss.push(_pick([
+      `Giao tiếp mắt của ${name} cũng có cải thiện, bé nhìn cô nhiều hơn trong các hoạt động.`,
+      `Bé bắt đầu nhìn và tương tác với cô tốt hơn, điều này rất quan trọng cho sự phát triển.`,
+    ]));
+  }
+
+  if (T.camxuc) {
+    ss.push(_pick([
+      `Cảm xúc của bé ổn định hơn, ít khóc và ít cáu hơn so với trước.`,
+      `${name} vui vẻ hơn trong các buổi học, cô thấy bé thoải mái và hứng thú hơn.`,
+    ]));
+  }
+
+  if (T.nhanhinh) {
+    ss.push(_pick([
+      `Khả năng nhận biết và ghi nhớ của bé cũng được cải thiện, bé làm theo hướng dẫn tốt hơn.`,
+      `${name} hiểu bài nhanh hơn và hoàn thành được nhiều bài tập hơn so với trước.`,
+    ]));
+  }
+
+  if (T.canren || T.canren_hv) {
+    ss.push(_pick([
+      `Tuy nhiên, bé vẫn còn một số điểm cần rèn thêm và cô sẽ tiếp tục hỗ trợ bé.`,
+      `Bên cạnh đó, bé vẫn cần được luyện tập thêm để những tiến bộ này ổn định hơn.`,
+    ]));
+  }
+
+  if (absentCount > 0) {
+    ss.push(`Trong ${isTuan?'tuần':'tháng'} này bé nghỉ ${absentCount} buổi, mong ba mẹ sắp xếp để bé học đều hơn.`);
+  }
+
+  if (T.phhome) {
+    ss.push(_pick([
+      `Ba mẹ nhớ nhắc bé luyện tập thêm ở nhà để kết quả học tập được tốt hơn nhé.`,
+      `Cô mong ba mẹ phối hợp luyện thêm với bé ở nhà theo hướng dẫn của cô.`,
+    ]));
+  }
+
+  ss.push(_pick([
+    `${isTuan?'Tuần':'Tháng'} tới cô sẽ tiếp tục theo dõi và hỗ trợ ${name} phát triển tốt hơn. Cảm ơn ba mẹ đã quan tâm!`,
+    `Cô sẽ tiếp tục đồng hành cùng ${name}. Mong bé ngày càng tiến bộ hơn nữa!`,
+    `Cô sẽ tiếp tục điều chỉnh và hỗ trợ bé phù hợp. Cảm ơn ba mẹ đã tin tưởng cô!`,
+  ]));
+
+  textarea.value = ss.join(' ');
+  textarea.placeholder = '';
+  textarea.focus();
+  textarea.style.borderColor = 'var(--violet)';
+  setTimeout(() => { textarea.style.borderColor = ''; }, 1500);
 }
 
 function generateWeekSummary(st, sessions, label) {
