@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chi tiết học sinh — Nhật ký can thiệp</title>
+<link rel="stylesheet" href="../shared/styles.css">
+<link rel="stylesheet" href="../shared/components.css">
+</head>
+<body>
+<div class="app-shell">
+  <div data-component="sidebar" data-active="students"></div>
+
+  <div class="main-content">
+    <div data-component="topbar" data-title="Chi tiết học sinh"></div>
+    <div class="page student-detail-page" id="pageStudentDetail"></div>
+  </div>
+
+  <div data-component="bottom-nav" data-active="students"></div>
+  <div data-component="student-modal"></div>
+</div>
+
+<script src="../components/components-loader.js" type="module"></script>
+
+<script type="module">
+import {
+  Store,
+  avatarColor,
+  initials,
+  age,
+  fmtDate,
+  fmtDateShort,
+  fmtMoney,
+  statusLabel,
+  getWeekRange,
+  todayStr,
+} from '../shared/store.js';
+
+const DAYS_SHORT = ['CN','T2','T3','T4','T5','T6','T7'];
+const page = document.getElementById('pageStudentDetail');
+const params = new URLSearchParams(location.search);
+let studentId = params.get('id');
+let weekOffset = 0;
+let monthOffset = 0;
+
+function fmtDatePlain(value) {
+  if (!value) return '';
+  const parts = String(value).split('-');
+  if (parts.length === 3) {
+    const [year, month, day] = parts;
+    return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+  }
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+}
+
+function render() {
+  const students = Store.get('students');
+  const st = students.find(s => s.id === studentId) || students[0];
+  if (!st) {
+    page.innerHTML = `
+      <div class="page-header">
+        <div>
+          <div class="page-title">Chi tiết học sinh</div>
+          <div class="page-sub">Chưa có học sinh nào</div>
+        </div>
+        <a class="btn btn-outline " href="students.html">← Quay lại</a>
+      </div>`;
+    return;
+  }
+  studentId = st.id;
+
+  const sessions = Store.get('sessions').filter(s => s.studentId === st.id);
+  const learnedToDate = learnedSlotsToDate(sessions, st);
+  const debts = Store.get('debts').filter(d => d.studentId === st.id && !d.done);
+  const week = getWeekRange(weekOffset);
+  const month = getMonthRange(monthOffset);
+  const weekSessions = sessionsInRange(sessions, week.start, week.end);
+  const monthSessions = sessionsInRange(sessions, month.start, month.end);
+  const weekReport = Store.getReport({ studentId: st.id, type: 'week', periodStart: week.start, periodEnd: week.end });
+  const monthReport = Store.getReport({ studentId: st.id, type: 'month', periodStart: month.start, periodEnd: month.end });
+  const weekReportsInMonth = reportsInRange(Store.get('reports') || [], st.id, 'week', month.start, month.end);
+
+  page.innerHTML = `
+    <section class="student-profile-card">
+      <div class="student-profile-main">
+        <div class="avatar lg" style="background:${avatarColor(st.name)}">${initials(st.name)}</div>
+        <div class="student-profile-info">
+          <div class="student-profile-title-row">
+            <div class="student-profile-title-main">
+              <h1>${escapeHTML(st.name)}</h1>
+              <div class="student-profile-tags">
+                ${(st.difficulties || []).map(d => `<span class="tag">${escapeHTML(d)}</span>`).join('')}
+                ${st.dob ? `<span class="tag green">${age(st.dob)}</span>` : ''}
+                ${debts.length ? `<span class="tag red">Nợ ${sum(debts, 'slots')} ca</span>` : ''}
+              </div>
+            </div>
+            <button class="btn btn-outline student-profile-edit-btn" id="btnEditStudent">Sửa thông tin</button>
+          </div>
+          ${st.goal ? `<p><span class="emoji" aria-hidden="true">🎯</span>${escapeHTML(st.goal)}</p>` : ''}
+        </div>
+      </div>
+      <div class="student-profile-grid">
+        <div><span>Ngày bắt đầu học</span><strong>${st.startDate ? fmtDatePlain(st.startDate) : 'Chưa nhập'}</strong></div>
+        <div><span>Đã học</span><strong>${formatNumber(learnedToDate)} ca</strong></div>
+        <div><span>Giờ học</span><strong>${escapeHTML(st.schedTime || '--:--')}</strong></div>
+        <div><span>Lịch tuần</span><strong>${formatDays(st)}</strong></div>
+        <div><span>Độ dài</span><strong>${st.duration || 1} ca</strong></div>
+        <div><span>Học phí</span><strong>${fmtMoney(st.feePerSlot)}/ca</strong></div>
+        <div><span>Tên bố</span><strong>${escapeHTML(st.fatherName || 'Chưa nhập')}</strong></div>
+        <div><span>Tên mẹ</span><strong>${escapeHTML(st.motherName || 'Chưa nhập')}</strong></div>
+      </div>
+    </section>
+
+    <section class="detail-report-card">
+      <div class="detail-section-head">
+        <div>
+          <div class="section-label">Nhận xét theo tuần</div>
+          <h2>Tuần ${week.label}</h2>
+        </div>
+        <div class="detail-actions">
+          <button class="icon-btn" data-action="prev-week" aria-label="Tuần trước"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M15 6C15 6 9.00001 10.4189 9 12C8.99999 13.5812 15 18 15 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button class="icon-btn" data-action="next-week" aria-label="Tuần sau"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9.00005 6C9.00005 6 15 10.4189 15 12C15 13.5812 9 18 9 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button class="btn btn-primary" data-action="export-week"><span class="emoji" aria-hidden="true">📄</span> Xuất tuần</button>
+        </div>
+      </div>
+      ${summaryTemplate({ st, sessions: weekSessions, report: weekReport, mode: 'week', label: `Tuần ${week.label}` })}
+      ${sessionListTemplate(weekSessions)}
+    </section>
+
+    <section class="detail-report-card">
+      <div class="detail-section-head">
+        <div>
+          <div class="section-label">Nhận xét theo tháng</div>
+          <h2>${month.label}</h2>
+        </div>
+        <div class="detail-actions">
+          <button class="icon-btn" data-action="prev-month" aria-label="Tháng trước"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M15 6C15 6 9.00001 10.4189 9 12C8.99999 13.5812 15 18 15 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button class="icon-btn" data-action="next-month" aria-label="Tháng sau"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9.00005 6C9.00005 6 15 10.4189 15 12C15 13.5812 9 18 9 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button class="btn btn-primary" data-action="export-month"><span class="emoji" aria-hidden="true">📄</span> Xuất tháng</button>
+        </div>
+      </div>
+      ${summaryTemplate({ st, sessions: monthSessions, report: monthReport, mode: 'month', label: month.label, weekReports: weekReportsInMonth })}
+      ${weekReportListTemplate(weekReportsInMonth)}
+    </section>
+  `;
+
+  bindEvents({ st, week, month, weekSessions, monthSessions, weekReport, monthReport, weekReportsInMonth });
+}
+
+function bindEvents(ctx) {
+  const { st, week, month, weekSessions, monthSessions, weekReportsInMonth } = ctx;
+  document.getElementById('btnEditStudent')?.addEventListener('click', () => window.StudentModal?.open(st.id));
+
+  page.querySelector('[data-action="prev-week"]')?.addEventListener('click', () => { weekOffset -= 1; render(); });
+  page.querySelector('[data-action="next-week"]')?.addEventListener('click', () => { weekOffset += 1; render(); });
+  page.querySelector('[data-action="prev-month"]')?.addEventListener('click', () => { monthOffset -= 1; render(); });
+  page.querySelector('[data-action="next-month"]')?.addEventListener('click', () => { monthOffset += 1; render(); });
+
+  page.querySelector('[data-action="ai-week"]')?.addEventListener('click', () => {
+    aiGenerateReport({
+      mode: 'week',
+      st,
+      sessions: weekSessions,
+      label: `Tuần ${week.label}`,
+      weekReports: [],
+      textarea: page.querySelector('[data-report-content="week"]'),
+      btn: page.querySelector('[data-action="ai-week"]'),
+    });
+  });
+  page.querySelector('[data-action="ai-month"]')?.addEventListener('click', () => {
+    aiGenerateReport({
+      mode: 'month',
+      st,
+      sessions: monthSessions,
+      label: month.label,
+      weekReports: weekReportsInMonth,
+      textarea: page.querySelector('[data-report-content="month"]'),
+      btn: page.querySelector('[data-action="ai-month"]'),
+    });
+  });
+  page.querySelector('[data-action="save-week-report"]')?.addEventListener('click', () => {
+    saveReport(st, 'week', week.start, week.end, `Tuần ${week.label}`, valueOfReport('week'));
+  });
+  page.querySelector('[data-action="save-month-report"]')?.addEventListener('click', () => {
+    saveReport(st, 'month', month.start, month.end, month.label, valueOfReport('month'));
+  });
+  page.querySelector('[data-action="export-week"]')?.addEventListener('click', () => {
+    const content = valueOfReport('week') || generateWeekSummary(st, weekSessions, `Tuần ${week.label}`);
+    exportWordReport(st, weekSessions, `Tuần ${week.label}`, 'tuan', content);
+  });
+  page.querySelector('[data-action="export-month"]')?.addEventListener('click', () => {
+    const content = valueOfReport('month') || generateMonthSummary(st, monthSessions, weekReportsInMonth, month.label);
+    exportWordReport(st, monthSessions, month.label, 'thang', content, weekReportsInMonth);
+  });
+
+  bindSessionNoteToggles();
+}
+
+function summaryTemplate({ st, sessions, report, mode, label, weekReports = [] }) {
+  const taught = sessions.filter(s => s.status === 'taught' || s.status === 'partial' || s.status === 'makeup' || s.type === 'makeup');
+  const absent = sessions.filter(s => s.status === 'absent');
+  const busy = sessions.filter(s => s.status === 'busy');
+  const slots = taught.reduce((a, s) => a + actualSlots(s), 0);
+  const absentSlots = absent.reduce((a, s) => a + plannedSlots(s), 0);
+  const busySlots = busy.reduce((a, s) => a + plannedSlots(s), 0);
+  const noStudySlots = absentSlots + busySlots;
+  const makeupNeededSlots = remainingMakeupSlots(st.id, sessions);
+  const hasSource = mode === 'week' ? hasSessionNotes(sessions) : (weekReports.length || hasSessionNotes(sessions));
+  const draft = report?.content || '';
+
+  return `
+    <div class="student-summary-grid">
+      <div><strong>${formatNumber(slots)}</strong><span>Ca đã học</span></div>
+      <div><strong>${formatNumber(noStudySlots)}</strong><span>Không học</span></div>
+      <div><strong>${formatNumber(makeupNeededSlots)}</strong><span>Ca cần bù</span></div>
+    </div>
+
+    <div class="ai-summary-card">
+      <div class="ai-summary-head">
+        <div class="summary-note-title"><span class="emoji" aria-hidden="true">✨</span> Nhận xét ${mode === 'week' ? 'tuần' : 'tháng'} gửi phụ huynh</div>
+      </div>
+      <textarea class="ai-summary-textarea" data-report-content="${mode}" rows="7" placeholder="${hasSource ? 'Nhập từ khóa gợi ý (tùy chọn) rồi bấm AI tạo nhận xét...' : 'Chưa có dữ liệu nhận xét để tổng hợp.'}">${escapeHTML(draft)}</textarea>
+      <div class="ai-summary-actions">
+        <button class="btn btn-outline" data-action="ai-${mode}" ${hasSource ? '' : 'disabled'}><span class="emoji" aria-hidden="true">🤖</span> AI tạo nhận xét</button>
+        <button class="btn btn-primary" data-action="save-${mode}-report">Lưu nhận xét</button>
+      </div>
+    </div>`;
+}
+
+function sessionListTemplate(sessions) {
+  if (!sessions.length) {
+    return `<div class="empty-detail-note">Chưa có ca học nào trong tuần này.</div>`;
+  }
+
+  const firstEmptyNoteIndex = sessions.findIndex(s => !shouldHideSessionNote(s.status || 'pending') && !sessionNoteText(s));
+  const firstExpandableIndex = firstEmptyNoteIndex >= 0
+    ? firstEmptyNoteIndex
+    : sessions.findIndex(s => !shouldHideSessionNote(s.status || 'pending'));
+
+  return `
+    <div class="session-note-list">
+      ${sessions.map((s, index) => {
+        const note = sessionNoteText(s);
+        const status = s.status || 'pending';
+        const statusText = statusLabel(status) || 'Chưa chấm';
+        const hideNote = shouldHideSessionNote(status);
+        const isOpen = !hideNote && index === firstExpandableIndex;
+        const noteHref = `session-note.html?studentId=${encodeURIComponent(s.studentId || studentId)}&sessionId=${encodeURIComponent(s.id)}`;
+        const noteBody = hideNote ? '' : (note ? `
+          <div class="session-note-content" ${isOpen ? '' : 'hidden'}>
+            <div class="session-note-plain">
+              <span>${escapeHTML(note)}</span>
+            </div>
+          </div>` : `
+          <div class="session-note-content" ${isOpen ? '' : 'hidden'}>
+            <div class="session-note-plain is-empty">
+              <div class="session-note-empty-state">
+                <div class="session-note-empty-icon"><span class="emoji" aria-hidden="true">💬</span></div>
+                <div class="session-note-empty-text">Chưa có nhận xét cho buổi học này.</div>
+                <a class="session-note-add-btn" href="${noteHref}">Thêm nhận xét</a>
+              </div>
+            </div>
+          </div>`);
+
+        return `
+        <article class="session-note-item${hideNote ? ' no-note' : ''}${isOpen ? ' is-open' : ''}" data-session-note-item="${escapeHTML(s.id || '')}">
+          <div class="session-note-head">
+            <div class="session-note-head-main">
+              <strong>${fmtDate(s.date)}</strong>
+              <span>${escapeHTML(s.startTime || '--:--')} · ${s.duration || 1} ca · ${statusText}</span>
+            </div>
+            <div class="session-note-status-wrap">
+              <span class="status-pill status-${status}">${statusText}</span>
+              ${hideNote ? '' : `
+              <button class="session-note-toggle" type="button" data-session-toggle aria-label="Mở rộng hoặc thu gọn nhận xét" aria-expanded="${isOpen ? 'true' : 'false'}">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="transform:rotate(90deg)"><path d="M9.00005 6C9.00005 6 15 10.4189 15 12C15 13.5812 9 18 9 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>`}
+            </div>
+          </div>
+          ${noteBody}
+        </article>`;
+      }).join('')}
+    </div>`;
+}
+
+function shouldHideSessionNote(status) {
+  return status === 'absent' || status === 'busy';
+}
+
+function bindSessionNoteToggles() {
+  page.querySelectorAll('[data-session-toggle]').forEach(button => {
+    button.addEventListener('click', () => {
+      const item = button.closest('[data-session-note-item]');
+      const body = item?.querySelector('.session-note-content');
+      if (!item || !body) return;
+
+      const isOpen = item.classList.toggle('is-open');
+      body.hidden = !isOpen;
+      button.setAttribute('aria-expanded', String(isOpen));
+    });
+  });
+}
+
+function weekReportListTemplate(reports) {
+  if (!reports.length) {
+    return `<div class="empty-detail-note">Chưa có nhận xét tuần đã lưu trong tháng này.</div>`;
+  }
+  return `
+    <div class="week-report-list">
+      <div class="section-label">Nguồn nhận xét tuần</div>
+      ${reports.map(r => `
+        <article class="week-report-item">
+          <strong>${escapeHTML(r.label || 'Nhận xét tuần')}</strong>
+          <p>${escapeHTML(r.content || '')}</p>
+        </article>`).join('')}
+    </div>`;
+}
+
+function sessionNoteText(session) {
+  const direct = String(session.noteText || session.note || session.noteContent || '').trim();
+  if (direct) return direct;
+  return [session.noteSkill, session.noteBehavior, session.noteProgress, session.noteParent]
+    .map(v => String(v || '').trim())
+    .filter(Boolean)
+    .join('\n');
+}
+
+function saveReport(st, type, start, end, label, content) {
+  Store.upsertReport({
+    studentId: st.id,
+    type,
+    periodStart: start,
+    periodEnd: end,
+    label,
+    source: 'teacher-edited',
+    content: content.trim(),
+  });
+}
+
+function valueOfReport(mode) {
+  return page.querySelector(`[data-report-content="${mode}"]`)?.value.trim() || '';
+}
+
+
+// ── AI tạo nhận xét (Local engine) ──────────────────────────────────────────
+
+// ── AI tạo nhận xét — Workers AI (Llama) qua fotmob-proxy /nxhs ─────────────
+
+async function aiGenerateReport({ mode, st, sessions, label, weekReports, textarea, btn }) {
+  if (!textarea || !btn) return;
+
+  const userKW      = textarea.value.trim();
+  const taught      = sessions.filter(s => ['taught','partial','makeup'].includes(s.status)||s.type==='makeup');
+  const totalSlots  = taught.reduce((a,s) => a + actualSlots(s), 0);
+  const absentCount = sessions.filter(s => s.status==='absent').length;
+  const noteTexts   = sessions.map(s => sessionNoteText(s)).filter(Boolean).join('. ');
+  const name        = st?.name || 'bé';
+  const isTuan      = mode === 'week';
+
+  if (!noteTexts && !userKW && !totalSlots) {
+    alert('Chưa có dữ liệu. Vui lòng thêm nhận xét từng buổi hoặc nhập từ khóa.');
+    return;
+  }
+
+  // UI loading
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = 'Đang tạo...';
+  textarea.value = '';
+  textarea.placeholder = 'Đang viết nhận xét...';
+
+  const system = `Bạn là giáo viên can thiệp sớm cho trẻ đặc biệt tại Việt Nam.
+Viết nhận xét ${isTuan ? 'tuần' : 'tháng'} gửi phụ huynh bằng tiếng Việt.
+
+Yêu cầu bắt buộc:
+- Giọng nhẹ nhàng, thân mật như nhắn tin với phụ huynh — dùng "mẹ ơi", "con", "cô", "ba mẹ"
+- Không dùng emoji
+- ${isTuan ? '4-6 câu' : '6-8 câu'} liền mạch, không gạch đầu dòng
+- Trung thực với dữ liệu: nếu ghi "hay cáu" thì không nói "tiến bộ rõ rệt"
+- Mỗi lần tạo phải khác với lần trước — dùng từ ngữ, cấu trúc câu khác nhau
+- Không bắt đầu bằng "Kính gửi" hay lời chào trang trọng
+- Kết thúc bằng 1 câu thân mật mời phụ huynh nhắn nếu cần`;
+
+  const dataCtx = [
+    `Tên bé: ${name}`,
+    `Kỳ: ${isTuan?'Tuần':'Tháng'} ${label}`,
+    totalSlots ? `Tổng ca đã học: ${totalSlots}` : '',
+    absentCount ? `Số buổi nghỉ: ${absentCount}` : '',
+    noteTexts ? `Nhận xét từng buổi: ${noteTexts}` : '',
+    userKW ? `Từ khóa giáo viên gợi ý: ${userKW}` : '',
+    `Yêu cầu: Viết khác với các tuần trước, không lặp cấu trúc câu cũ.`,
+  ].filter(Boolean).join('
+');
+
+  try {
+    const payload = btoa(unescape(encodeURIComponent(JSON.stringify({
+      system,
+      messages: [{ role: 'user', content: dataCtx }],
+    }))));
+
+    const res = await fetch('https://nxhs-worker.ductrangdesign.workers.dev', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: payload,
+    });
+
+    const data = await res.json();
+    const text = data.content?.[0]?.text?.trim() || '';
+
+    if (text) {
+      textarea.value = text;
+      textarea.placeholder = '';
+      textarea.focus();
+      textarea.style.borderColor = 'var(--violet)';
+      setTimeout(() => { textarea.style.borderColor = ''; }, 1500);
+    } else {
+      throw new Error('Không có phản hồi từ AI');
+    }
+  } catch (err) {
+    console.error('AI error:', err);
+    textarea.value = '';
+    textarea.placeholder = '';
+    alert('AI tạm thời không khả dụng. Vui lòng thử lại sau.');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
+}
+
+function generateWeekSummary(st, sessions, label) {
+  const taught = sessions.filter(s => s.status === 'taught' || s.status === 'makeup');
+  const notes = collectNotes(sessions);
+  if (!notes.length) return '';
+
+  const parts = [];
+  parts.push(`Trong ${label.toLowerCase()}, ${st.name} đã học tổng ${formatNumber(taught.reduce((a, s) => a + actualSlots(s), 0))} ca.`);
+  parts.push(`Các ghi nhận trong tuần: ${joinNotes(notes)}.`);
+  parts.push(`Tuần tới, cô sẽ tiếp tục theo dõi khả năng hợp tác, tập trung và tiến bộ của bé trong từng hoạt động để điều chỉnh mục tiêu can thiệp phù hợp hơn.`);
+  return parts.join('\n');
+}
+
+function generateMonthSummary(st, sessions, weekReports, label) {
+  const taught = sessions.filter(s => s.status === 'taught' || s.status === 'makeup');
+  const sourceTexts = weekReports.map(r => r.content).filter(Boolean);
+  const notes = collectNotes(sessions);
+  const parts = [];
+  parts.push(`Trong ${label.toLowerCase()}, ${st.name} đã học tổng ${formatNumber(taught.reduce((a, s) => a + actualSlots(s), 0))} ca.`);
+
+  if (sourceTexts.length) {
+    parts.push(`Dựa trên các nhận xét theo tuần, bé có sự thay đổi đáng chú ý qua từng giai đoạn: ${joinNotes(sourceTexts)}.`);
+  } else if (notes.length) {
+    parts.push(`Các ghi nhận trong tháng gồm: ${joinNotes(notes)}.`);
+  }
+
+  parts.push(`Trong tháng tới, cô sẽ tiếp tục duy trì các điểm mạnh đã hình thành, tăng dần yêu cầu theo khả năng của bé và phối hợp với gia đình để hỗ trợ bé ổn định hơn trong học tập, giao tiếp và sinh hoạt.`);
+  return parts.join('\n');
+}
+
+function collectNotes(sessions) {
+  return [...new Set(sessions.map(sessionNoteText).map(t => t.trim()).filter(Boolean))];
+}
+
+function hasSessionNotes(sessions) {
+  return sessions.some(s => sessionNoteText(s));
+}
+
+function joinNotes(items) {
+  return items.map(t => t.replace(/[.。]+$/,'')).join('; ');
+}
+
+function reportsInRange(reports, studentId, type, start, end) {
+  return reports
+    .filter(r => r.studentId === studentId && r.type === type && r.periodStart >= start && r.periodStart <= end)
+    .sort((a, b) => a.periodStart.localeCompare(b.periodStart));
+}
+
+function exportWordReport(st, sessions, label, scope, summaryContent = '', weekReports = []) {
+  const taught = sessions.filter(s => s.status === 'taught' || s.status === 'partial' || s.status === 'makeup' || s.type === 'makeup');
+  const slots = taught.reduce((a, s) => a + actualSlots(s), 0);
+  const absentBusySlots = sessions
+    .filter(s => s.status === 'absent' || s.status === 'busy')
+    .reduce((a, s) => a + plannedSlots(s), 0);
+  const fileName = safeFileName(`bao-cao-${scope}-${st.name}-${todayStr()}.doc`);
+
+  const html = `
+    <html><head><meta charset="UTF-8"><title>Báo cáo ${label}</title>
+    <style>
+      body{font-family:Arial,sans-serif;color:#111827;line-height:1.5}
+      h1{font-size:22px;margin:0 0 6px} h2{font-size:16px;margin:20px 0 8px}
+      .muted{color:#6b7280}.box{border:1px solid #e5e7eb;padding:12px;margin:12px 0;border-radius:8px}
+      table{width:100%;border-collapse:collapse;margin-top:10px} th,td{border:1px solid #e5e7eb;padding:8px;text-align:left;vertical-align:top;font-size:12px}
+      th{background:#f3f4f6} p{white-space:pre-line}.small{font-size:12px;color:#6b7280}
+    </style></head><body>
+      <h1>Báo cáo can thiệp — ${escapeHTML(st.name)}</h1>
+      <div class="muted">${escapeHTML(label)} · Tạo ngày ${fmtDate(todayStr())}</div>
+      <div class="box">
+        <strong>Thông tin học sinh</strong><br>
+        Tên bố: ${escapeHTML(st.fatherName || 'Chưa nhập')}<br>
+        Tên mẹ: ${escapeHTML(st.motherName || 'Chưa nhập')}<br>
+        Ngày bắt đầu học: ${st.startDate ? fmtDate(st.startDate) : 'Chưa nhập'}<br>
+        Đã học: ${formatNumber(learnedSlotsToDate(sessions, st))} ca<br>
+        Mục tiêu: ${escapeHTML(st.goal || 'Chưa nhập')}<br>
+        Lịch học: ${formatDays(st)} · ${escapeHTML(st.schedTime || '--:--')} · ${st.duration || 1} ca
+      </div>
+      <div class="box">
+        <strong>Tổng quan</strong><br>
+        Ca đã học: ${formatNumber(slots)}<br>
+        Ca nghỉ/cô bận: ${formatNumber(absentBusySlots)}
+      </div>
+      <h2>Nhận xét tổng hợp gửi phụ huynh</h2>
+      ${summaryContent ? `<p>${escapeHTML(summaryContent)}</p>` : '<p>Chưa có nhận xét tổng hợp.</p>'}
+      ${weekReports.length ? `<h2>Nhận xét tuần đã lưu</h2>${weekReports.map(r => `<div class="box"><strong>${escapeHTML(r.label || '')}</strong><p class="small">${escapeHTML(r.content || '')}</p></div>`).join('')}` : ''}
+      <h2>Chi tiết ca học</h2>
+      <table>
+        <thead><tr><th>Ngày</th><th>Ca</th><th>Trạng thái</th><th>Nhận xét</th></tr></thead>
+        <tbody>${sessions.map(s => `<tr>
+          <td>${fmtDate(s.date)}</td><td>${escapeHTML(s.startTime || '--:--')} · ${s.duration || 1} ca</td><td>${statusLabel(s.status) || 'Chưa chấm'}</td>
+          <td>${escapeHTML(sessionNoteText(s) || '')}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </body></html>`;
+
+  const blob = new Blob(['\ufeff', html], { type: 'application/msword;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function actualSlots(session) {
+  return Number(session?.actualSlots ?? session?.duration ?? 0);
+}
+
+function plannedSlots(session) {
+  return Number(session?.plannedSlots ?? session?.debtSlots ?? session?.duration ?? 0);
+}
+
+function remainingMakeupSlots(studentId, sessions) {
+  const sessionIds = new Set((sessions || []).map(s => s.id));
+  return (Store.get('debts') || [])
+    .filter(d => d.studentId === studentId && !d.done && (!d.sessionId || sessionIds.has(d.sessionId)))
+    .reduce((total, d) => total + Number(d.slots || 0), 0);
+}
+
+function learnedSlotsToDate(sessions, st) {
+  const today = todayStr();
+  return sessions.filter(s =>
+    s.studentId === st.id &&
+    (s.status === 'taught' || s.status === 'partial' || s.status === 'makeup' || s.type === 'makeup') &&
+    s.date <= today &&
+    (!st.startDate || s.date >= st.startDate)
+  ).reduce((sum, s) => sum + Number(s.actualSlots ?? s.duration ?? 0), 0);
+}
+
+function sessionsInRange(sessions, start, end) {
+  return sessions
+    .filter(s => s.date >= start && s.date <= end)
+    .sort((a, b) => (a.date + (a.startTime || '')).localeCompare(b.date + (b.startTime || '')));
+}
+
+function getMonthRange(offset = 0) {
+  const now = new Date();
+  const base = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+  const end = new Date(base.getFullYear(), base.getMonth() + 1, 0);
+  return {
+    start: toDateStr(base),
+    end: toDateStr(end),
+    label: `Tháng ${base.getMonth() + 1}/${base.getFullYear()}`,
+  };
+}
+
+function toDateStr(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function formatDays(st) {
+  const rawDays = Array.from(new Set((st.schedDays || []).map(Number)))
+    .filter(day => Number.isInteger(day) && day >= 0 && day <= 6);
+
+  if (!rawDays.length) return 'Chưa có lịch';
+
+  // Hiển thị lịch tuần theo thứ tự T2 → CN.
+  // Nếu có từ 4 ngày học liên tiếp, rút gọn thành: ngày đầu → ngày cuối.
+  const weekOrder = [1, 2, 3, 4, 5, 6, 0];
+  const orderedDays = weekOrder.filter(day => rawDays.includes(day));
+  const ranges = [];
+  let current = [];
+
+  orderedDays.forEach(day => {
+    const prev = current[current.length - 1];
+    const isNextDay = current.length
+      ? weekOrder.indexOf(day) === weekOrder.indexOf(prev) + 1
+      : true;
+
+    if (!current.length || isNextDay) {
+      current.push(day);
+    } else {
+      ranges.push(current);
+      current = [day];
+    }
+  });
+
+  if (current.length) ranges.push(current);
+
+  return ranges
+    .map(range => {
+      if (range.length >= 4) {
+        return `${DAYS_SHORT[range[0]]} → ${DAYS_SHORT[range[range.length - 1]]}`;
+      }
+      return range.map(day => DAYS_SHORT[day]).join(', ');
+    })
+    .join(', ');
+}
+
+function formatNumber(value) {
+  return Number(value || 0).toLocaleString('vi-VN', { maximumFractionDigits: 1 });
+}
+
+function sum(list, key) { return list.reduce((a, item) => a + Number(item[key] || 0), 0); }
+function safeFileName(name) { return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/-+/g, '-').toLowerCase(); }
+function escapeHTML(value) { return String(value || '').replace(/[&<>\"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])); }
+
+Store.subscribe('students', render);
+Store.subscribe('sessions', render);
+Store.subscribe('debts', render);
+Store.subscribe('reports', render);
+render();
+</script>
+</body>
+</html>
