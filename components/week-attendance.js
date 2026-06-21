@@ -12,7 +12,7 @@ import {
   getWeekRange,
   toLocalDateStr,
   todayStr,
-} from '../shared/store.js';
+  displayName } from '../shared/store.js';
 
 const DAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 const FULL_WEEK_LABEL = 'Thứ 2 đến Chủ nhật';
@@ -576,7 +576,7 @@ function rollbackMakeupAllocations(existing) {
 
 function addManualSession(root, dates) {
   const students = Store.get('students');
-  const list = students.map(s => `${s.id}: ${s.name}`).join('\n');
+  const list = students.map(s => `${s.id}: ${displayName(s)}`).join('\n');
   const sel = prompt('Nhập ID hoặc tên học sinh:\n' + list);
   if (!sel) return;
 

@@ -825,14 +825,22 @@ textarea,
     padding-right: 16px !important;
   }
 
-  .student-modal .form-row,
-  .student-modal .sm-dob-gender-row,
+  .student-modal .form-row:not(.sm-name-row):not(.sm-birth-gender-row):not(.sm-dob-gender-row),
   .student-modal .sm-start-status-row,
   .student-modal .sm-start-status-row.is-add-mode,
   .student-modal .sm-start-status-row.is-edit-mode {
     display: grid !important;
     grid-template-columns: minmax(0, 1fr) !important;
     gap: 0px !important;
+    width: 100% !important;
+  }
+
+  .student-modal .sm-name-row,
+  .student-modal .sm-birth-gender-row,
+  .student-modal .sm-dob-gender-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 10px !important;
     width: 100% !important;
   }
 
@@ -843,6 +851,13 @@ textarea,
     width: 100% !important;
     max-width: 100% !important;
     min-width: 0 !important;
+  }
+
+  /* 2-column rows: reset grid-column so each form-group occupies 1 column */
+  .student-modal .sm-name-row .form-group,
+  .student-modal .sm-birth-gender-row .form-group,
+  .student-modal .sm-dob-gender-row .form-group {
+    grid-column: auto !important;
   }
 
   .student-modal .form-input,
@@ -1917,4 +1932,22 @@ input[type="search"]::-webkit-search-decoration {
   padding: 0;
   flex-shrink: 0;
 }
+.sm-field-clear[hidden] { display: none !important; }
 .sm-field-clear:hover { background: var(--border-2); color: var(--ink); }
+
+/* ── sm-name-row + sm-birth-gender-row: luôn 2 cột trên mọi màn hình ─────── */
+.student-modal .sm-name-row,
+.student-modal .sm-birth-gender-row,
+.student-modal .sm-dob-gender-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  gap: 10px !important;
+}
+
+/* ── sm-name-row: label không wrap, truncate nếu quá dài ────────────────── */
+.student-modal .sm-name-row .form-label {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+

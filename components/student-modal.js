@@ -25,11 +25,18 @@ export function render(el, dataset) {
           </button>
         </div>
 
-        <div class="form-row">
-          <div class="form-group" style="grid-column:1/-1">
+        <div class="form-row sm-name-row">
+          <div class="form-group">
             <label class="form-label">Họ và tên *</label>
             <div class="sm-field-wrap">
-              <input class="form-input" id="smName" type="text" placeholder="Bé Nguyễn Văn An">
+              <input class="form-input" id="smName" type="text" placeholder="Họ và tên đầy đủ">
+              <button type="button" class="sm-field-clear" aria-label="Xóa" tabindex="-1" hidden></button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tên gọi</label>
+            <div class="sm-field-wrap">
+              <input class="form-input" id="smNickname" type="text" placeholder="Tên thường gọi">
               <button type="button" class="sm-field-clear" aria-label="Xóa" tabindex="-1" hidden></button>
             </div>
           </div>
@@ -181,7 +188,8 @@ function _open(el, id = null) {
     statusGroup.querySelector('select')?.toggleAttribute('disabled', !isEdit);
   }
 
-  el.querySelector('#smName').value    = st?.name    || '';
+  el.querySelector('#smName').value     = st?.name     || '';
+  el.querySelector('#smNickname').value = st?.nickname || '';
   el.querySelector('#smBirthYear').value = _yearFromDob(st?.dob || '');
   el.querySelector('#smGender').value  = st?.gender  || 'Nam';
   _setCalendarDate(el, st?.startDate || todayStr());
@@ -195,6 +203,9 @@ function _open(el, id = null) {
 
   _buildDiffPicker(el, st?.difficulties || []);
   _buildDayPicker(el, st?.schedDays ?? [1,2,3,4,5,6]);
+
+  // Reset tất cả clear button về ẩn
+  el.querySelectorAll('.sm-field-wrap input, .sm-field-wrap textarea').forEach(f => f._syncClear?.());
 
   document.body.classList.add('modal-open');
   el.querySelector('#studentModalOverlay').classList.add('open');
@@ -252,7 +263,8 @@ function _bindKeyboardAssist(el) {
 }
 
 function _save(el) {
-  const name = el.querySelector('#smName').value.trim();
+  const name     = el.querySelector('#smName').value.trim();
+  const nickname = el.querySelector('#smNickname').value.trim();
   if (!name) { alert('Vui lòng nhập tên học sinh'); return; }
 
   const schedDays    = [...el.querySelectorAll('.day-chip.selected')].map(c => +c.dataset.day);
@@ -263,6 +275,8 @@ function _save(el) {
   Store.upsertStudent({
     id: _editingId || uid(),
     name,
+    nickname,
+    displayName: nickname ? `${name} (${nickname})` : name,
     dob:        _dobFromYear(el.querySelector('#smBirthYear').value),
     gender:     el.querySelector('#smGender').value,
     status:     _editingId ? (el.querySelector('#smStatus')?.value || 'active') : 'active',
@@ -398,25 +412,27 @@ function _bindClearButtons(el) {
     if (!field || !btn) return;
 
     btn.innerHTML = CLEAR_SVG;
+    let isFocused = false;
 
     const update = () => {
-      btn.hidden = field.value.trim() === '';
+      btn.hidden = !(isFocused && field.value.trim() !== '');
     };
 
-    field.addEventListener('input', update);
-    field.addEventListener('focus', update);
-    field.addEventListener('blur', () => {
-      // Delay để click clear không bị blur trước
-      setTimeout(update, 150);
-    });
+    update(); // ẩn ngay khi khởi tạo
 
-    btn.addEventListener('mousedown', e => e.preventDefault()); // giữ focus
+    field.addEventListener('focus',  () => { isFocused = true;  update(); });
+    field.addEventListener('blur',   () => { setTimeout(() => { isFocused = false; update(); }, 150); });
+    field.addEventListener('input',  update);
+
+    btn.addEventListener('mousedown', e => e.preventDefault());
     btn.addEventListener('click', () => {
       field.value = '';
-      field.focus();
-      btn.hidden = true;
       field.dispatchEvent(new Event('input'));
+      update();
     });
+
+    // Reset về ẩn khi _open() được gọi lại
+    field._syncClear = () => { isFocused = false; update(); };
   });
 }
 

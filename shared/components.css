@@ -381,7 +381,7 @@
 /* ── WEEK ATTENDANCE GRID ───────────────── */
 .week-attendance {
   background: var(--surface);
-  padding: 16px;
+  padding: 0 16px 16px 16px;
   margin-bottom: 18px;
 }
 .week-attendance-head {
@@ -820,7 +820,6 @@
   justify-content: space-between;
   gap: 8px;
   padding: 12px;
-  border-bottom: 1px solid var(--border);
   background: var(--bg);
 }
 .session-note-head strong {
@@ -3312,7 +3311,7 @@ input[type="search"]::-webkit-search-decoration {
     top: 64px !important;
     z-index: 39 !important;
     margin: 0 -16px 16px !important;
-    padding: 0px 16px 12px !important;
+    padding: 16px 16px 12px !important;
     background: var(--surface, #FFFFFF) !important;
     border-bottom: 1px solid var(--border, #DFE3E6) !important;
     box-shadow: 0 8px 20px rgba(16, 16, 19, .06) !important;

@@ -5,7 +5,7 @@
  *
  * Used by: pages/checkin.html
  */
-import { Store, avatarColor, initials, age, fmtMoney, todayStr, uid } from '../shared/store.js';
+import { Store, avatarColor, initials, age, fmtMoney, todayStr, uid , displayName } from '../shared/store.js';
 
 export function render(el, dataset) {
   const studentId = dataset.studentId;
@@ -26,7 +26,7 @@ function _render(el, studentId) {
       <div class="checkin-head">
         <div class="avatar" style="background:${avatarColor(st.name)}">${initials(st.name)}</div>
         <div class="checkin-info">
-          <div class="checkin-name">${st.name}</div>
+          <div class="checkin-name">${displayName(st)}</div>
           <div class="checkin-meta">
             ${age(st.dob)}
             · ${st.schedTime}

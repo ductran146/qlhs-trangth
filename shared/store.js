@@ -511,6 +511,12 @@ const Store = {
 
 // ── Shared utils ─────────────────────────────────────────────────────────────
 
+
+// Tên hiển thị cho giáo viên: "Họ tên (tên thường gọi)" nếu có nickname
+function displayName(st) {
+  if (!st) return '';
+  return st.nickname ? `${st.name} (${st.nickname})` : st.name;
+}
 function uid() { return 'i' + Date.now() + Math.random().toString(36).slice(2, 5); }
 function avatarColor(name) {
   let h = 0;
@@ -562,4 +568,4 @@ function getWeekRange(offset = 0) {
   };
 }
 
-export { Store, uid, avatarColor, initials, fmtDate, fmtDateShort, fmtMoney, todayStr, toLocalDateStr, age, statusLabel, getWeekRange };
+export { Store, uid, displayName, avatarColor, initials, fmtDate, fmtDateShort, fmtMoney, todayStr, toLocalDateStr, age, statusLabel, getWeekRange };

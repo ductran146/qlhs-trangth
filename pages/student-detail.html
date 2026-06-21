@@ -34,7 +34,7 @@ import {
   statusLabel,
   getWeekRange,
   todayStr,
-} from '../shared/store.js';
+  displayName } from '../shared/store.js';
 
 const DAYS_SHORT = ['CN','T2','T3','T4','T5','T6','T7'];
 const page = document.getElementById('pageStudentDetail');
@@ -346,85 +346,9 @@ function valueOfReport(mode) {
 
 // ── AI tạo nhận xét (Local engine) ──────────────────────────────────────────
 
-const KW_MAP = {
-  tienbo:    ['tiến bộ','tien bo','có tiến bộ','tiến bộ tốt','tiến bộ nhiều','cải thiện','tốt hơn','khá hơn','tiến bộ hơn'],
-  hoatac:    ['hợp tác','hop tac','nghe lời','nghe co','hợp tác tốt','hợp tác hơn','chịu hợp tác','dễ bảo','phối hợp','ít chống đối','bớt chống đối'],
-  taptrung:  ['tập trung','tap trung','chú ý','chu y','tập trung hơn','ít mất tập trung','bớt mất tập trung','ngồi yên','ít nghịch','bớt nghịch'],
-  phatam:    ['phát âm','phat am','nói rõ','noi ro','phát âm được','dấu hỏi','dấu ngã','dấu sắc','dấu huyền','bắt đầu nói','nói được','đọc được','đọc tốt'],
-  viet:      ['viết','viet','tập viết','tap viet','viết được','viết tốt','viết chữ','cầm bút','nét chữ'],
-  doc:       ['đọc','doc','tập đọc','đọc được','đọc tốt','nhớ mặt chữ','nhận mặt chữ','đọc nhanh'],
-  giaotiep:  ['giao tiếp mắt','nhìn mắt','nhìn cô','tiếp xúc mắt','giao tiếp tốt','tương tác','bắt mắt'],
-  camxuc_ok: ['vui vẻ','ổn định','ít khóc','bớt khóc','ít cáu','bớt cáu','hào hứng','thích học','vui','hứng thú'],
-  nhanhinh:  ['nhận biết','hiểu bài','ghi nhớ','làm được','hoàn thành','làm đúng','nhớ bài','nhớ chữ'],
-  hay_cau:   ['hay cáu','hay khóc','cáu','la hét','bực bội','khó chịu','hay cau','hay khoc'],
-  khong_nghe:['không nghe lời','ko nghe','khong nghe','không chịu','phản kháng','chống đối','khó bảo','không hợp tác'],
-  mat_taptrung:['mất tập trung','hay nghịch','phân tâm','không chú ý','không tập trung','hay chạy'],
-  chua_on:   ['chưa ổn','còn khó','chưa đều','cần thêm','cần rèn','cần luyện','vẫn cần nhắc'],
-  phhome:    ['nhắc phụ huynh','ba mẹ luyện','luyện ở nhà','mẹ nhắc','rèn ở nhà','đọc ở nhà','viết ở nhà','luyện thêm'],
-};
+// ── AI tạo nhận xét — Workers AI (Llama) qua fotmob-proxy /nxhs ─────────────
 
-function _norm(s) {
-  return (s||'').toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g,'')
-    .replace(/đ/g,'d');
-}
-
-function _detectTopics(noteTexts, userKW) {
-  const allNorm = _norm(noteTexts) + ' ' + _norm(userKW);
-  const found = {};
-  for (const [topic, kws] of Object.entries(KW_MAP)) {
-    if (kws.map(k=>_norm(k)).some(k => allNorm.includes(k))) found[topic] = true;
-  }
-  const negCount = ['hay_cau','khong_nghe','mat_taptrung'].filter(t=>found[t]).length;
-  const posCount = ['tienbo','hoatac','taptrung','phatam','viet','doc','camxuc_ok','nhanhinh'].filter(t=>found[t]).length;
-  found._tone = posCount > negCount ? 'pos' : negCount > posCount ? 'neg' : 'mix';
-  return found;
-}
-
-function _extractDau(text) {
-  const m = text.match(/dấu\s+\S+/gi);
-  return m ? [...new Set(m)].join(', ') : null;
-}
-
-// ── Anti-repeat engine ────────────────────────────────────────────────────────
-// Lưu index câu đã dùng theo studentId + topic vào localStorage
-// Key: nkct_used_{studentId}_{topic} → JSON array of used indices
-// Mỗi bank câu tự xoay vòng: chỉ lặp lại khi đã dùng hết tất cả
-
-function _getUsed(studentId, topic) {
-  try {
-    const raw = localStorage.getItem('nkct_used_' + studentId + '_' + topic);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
-}
-
-function _setUsed(studentId, topic, used) {
-  try { localStorage.setItem('nkct_used_' + studentId + '_' + topic, JSON.stringify(used)); } catch {}
-}
-
-// Chọn câu chưa dùng (với studentId để tránh lặp giữa các tuần của cùng 1 học sinh)
-function _pickFresh(arr, studentId, topic) {
-  if (!arr || arr.length === 0) return '';
-  if (arr.length === 1) return arr[0];
-
-  let used = _getUsed(studentId, topic);
-  // Nếu đã dùng hết thì reset (xoay vòng nhưng tránh dùng lại câu vừa dùng)
-  const lastUsed = used[used.length - 1];
-  if (used.length >= arr.length) {
-    used = lastUsed !== undefined ? [lastUsed] : [];
-  }
-
-  const available = arr
-    .map((v, i) => ({ v, i }))
-    .filter(({ i }) => !used.includes(i));
-
-  // Chọn ngẫu nhiên trong các câu chưa dùng
-  const chosen = available[Math.floor(Math.random() * available.length)];
-  _setUsed(studentId, topic, [...used, chosen.i]);
-  return chosen.v;
-}
-
-function aiGenerateReport({ mode, st, sessions, label, weekReports, textarea, btn }) {
+async function aiGenerateReport({ mode, st, sessions, label, weekReports, textarea, btn }) {
   if (!textarea || !btn) return;
 
   const userKW      = textarea.value.trim();
@@ -433,243 +357,75 @@ function aiGenerateReport({ mode, st, sessions, label, weekReports, textarea, bt
   const absentCount = sessions.filter(s => s.status==='absent').length;
   const noteTexts   = sessions.map(s => sessionNoteText(s)).filter(Boolean).join('. ');
   const name        = st?.name || 'bé';
-  const sid         = st?.id   || 'unknown';  // student ID để track lịch sử riêng từng bé
   const isTuan      = mode === 'week';
-  const allText     = noteTexts + ' ' + userKW;
 
   if (!noteTexts && !userKW && !totalSlots) {
     alert('Chưa có dữ liệu. Vui lòng thêm nhận xét từng buổi hoặc nhập từ khóa.');
     return;
   }
 
-  const T    = _detectTopics(noteTexts, userKW);
-  const tone = T._tone;
-  const parts = [];
+  // UI loading
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = 'Đang tạo...';
+  textarea.value = '';
+  textarea.placeholder = 'Đang viết nhận xét...';
 
-  // Hàm gọi tắt — mỗi topic có key riêng để track lịch sử
-  const p = (topic, arr) => _pickFresh(arr, sid, topic);
+  const system = `Bạn là giáo viên can thiệp sớm cho trẻ đặc biệt tại Việt Nam.
+Viết nhận xét ${isTuan ? 'tuần' : 'tháng'} gửi phụ huynh bằng tiếng Việt.
 
-  // ── Mở đầu ────────────────────────────────────────────────────────────────
-  if (tone === 'pos') {
-    parts.push(p('open_pos', [
-      `Cô gửi nhận xét ${isTuan?'tuần':'tháng'} ${label} của ${name} để mẹ nắm nhé.`,
-      `${isTuan?'Tuần':'Tháng'} ${label} ${name} học khá tốt, cô kể mẹ nghe nhé.`,
-      `Cô chia sẻ tình hình học ${isTuan?'tuần':'tháng'} này của ${name} để mẹ biết nhé.`,
-      `Mẹ ơi, cô gửi nhận xét ${isTuan?'tuần':'tháng'} ${label} của ${name} nhé.`,
-    ]));
-  } else if (tone === 'neg') {
-    parts.push(p('open_neg', [
-      `Cô gửi nhận xét ${isTuan?'tuần':'tháng'} ${label} của ${name} để mẹ nắm nhé.`,
-      `${isTuan?'Tuần':'Tháng'} này cô muốn chia sẻ với mẹ về tình hình của ${name} một chút nhé.`,
-      `Mẹ ơi, cô kể mẹ nghe tình hình học ${isTuan?'tuần':'tháng'} ${label} của ${name} nhé.`,
-    ]));
-  } else {
-    parts.push(p('open_mix', [
-      `Cô gửi nhận xét ${isTuan?'tuần':'tháng'} ${label} của ${name} để mẹ tham khảo nhé.`,
-      `${isTuan?'Tuần':'Tháng'} ${label} cô và ${name} học được ${totalSlots} ca, cô kể mẹ nghe nhé.`,
-      `Mẹ ơi, cô chia sẻ tình hình ${isTuan?'tuần':'tháng'} này của ${name} để mẹ biết nhé.`,
-    ]));
-  }
+Yêu cầu bắt buộc:
+- Giọng nhẹ nhàng, thân mật như nhắn tin với phụ huynh — dùng "mẹ ơi", "con", "cô", "ba mẹ"
+- Không dùng emoji
+- ${isTuan ? '4-6 câu' : '6-8 câu'} liền mạch, không gạch đầu dòng
+- Trung thực với dữ liệu: nếu ghi "hay cáu" thì không nói "tiến bộ rõ rệt"
+- Mỗi lần tạo phải khác với lần trước — dùng từ ngữ, cấu trúc câu khác nhau
+- Không bắt đầu bằng "Kính gửi" hay lời chào trang trọng
+- Kết thúc bằng 1 câu thân mật mời phụ huynh nhắn nếu cần`;
 
-  // ── Tiêu cực ──────────────────────────────────────────────────────────────
-  if (T.hay_cau && T.khong_nghe) {
-    parts.push(p('neg_both', [
-      `${name} vẫn còn hay cáu và chưa chịu nghe lời cô trong một số hoạt động mẹ ơi.`,
-      `Bé vẫn hay cáu và chưa hợp tác đều, cô vẫn đang kiên nhẫn hỗ trợ con nhé mẹ.`,
-      `Cô nhận thấy ${name} vẫn dễ cáu và chưa chịu phối hợp đều trong các buổi học.`,
-      `${name} còn hay cáu và khó bảo một chút mẹ ơi, cô đang từ từ nhắc con thêm.`,
-    ]));
-  } else if (T.hay_cau) {
-    parts.push(p('neg_cau', [
-      `${name} vẫn hay cáu trong giờ học, cô đang từ từ giúp con kiểm soát cảm xúc tốt hơn nhé mẹ.`,
-      `Bé hay cáu một chút mẹ ơi, mẹ ở nhà cũng nhắc con nhẹ nhẹ giúp cô nhé.`,
-      `Cô thấy ${name} dễ cáu khi không vừa ý, cô đang tìm cách phù hợp để giúp con.`,
-      `${name} hay cáu trong một số hoạt động, cô sẽ tiếp tục nhắc và hỗ trợ con nhé mẹ.`,
-    ]));
-  } else if (T.khong_nghe) {
-    parts.push(p('neg_nghe', [
-      `${name} hay phản kháng và chưa chịu nghe lời, cô vẫn đang nhắc bé từ từ mẹ ơi.`,
-      `Bé chưa hợp tác đều, cô sẽ tiếp tục kiên nhẫn với con nhé mẹ.`,
-      `Cô thấy ${name} chưa chịu nghe lời trong một số hoạt động, cô đang từ từ hỗ trợ con.`,
-      `${name} còn hay chống đối một chút mẹ ơi, mẹ nhắc con ở nhà giúp cô nhé.`,
-    ]));
-  }
+  const dataCtx = [
+    `Tên bé: ${name}`,
+    `Kỳ: ${isTuan?'Tuần':'Tháng'} ${label}`,
+    totalSlots ? `Tổng ca đã học: ${totalSlots}` : '',
+    absentCount ? `Số buổi nghỉ: ${absentCount}` : '',
+    noteTexts ? `Nhận xét từng buổi: ${noteTexts}` : '',
+    userKW ? `Từ khóa giáo viên gợi ý: ${userKW}` : '',
+    `Yêu cầu: Viết khác với các tuần trước, không lặp cấu trúc câu cũ.`,
+  ].filter(Boolean).join('\n');
 
-  if (T.mat_taptrung) {
-    parts.push(p('neg_taptrung', [
-      `Con hay mất tập trung, cô đang điều chỉnh hoạt động để phù hợp hơn với ${name}.`,
-      `Bé hay bị phân tâm trong giờ học, cô sẽ tìm cách giúp con tập trung hơn.`,
-      `${name} chưa ngồi yên được lâu mẹ ơi, cô đang tìm cách giúp con dần dần nhé.`,
-      `Cô thấy ${name} hay bị phân tâm, cô sẽ điều chỉnh để phù hợp với con hơn.`,
-    ]));
-  }
+  try {
+    const payload = btoa(unescape(encodeURIComponent(JSON.stringify({
+      system,
+      messages: [{ role: 'user', content: dataCtx }],
+    }))));
 
-  // ── Đọc ──────────────────────────────────────────────────────────────────
-  if (T.doc) {
-    const dau = _extractDau(allText);
-    if (dau) {
-      parts.push(p('pos_doc_dau', [
-        `${name} đọc được rồi mẹ ơi, con nhớ mặt chữ và đọc được ${dau}. Giờ chỉ cần luyện thêm để đọc nhanh hơn thôi.`,
-        `Con đọc được ${dau} rồi đó mẹ. Mẹ cho con đọc thêm ở nhà mỗi ngày để quen hơn nhé.`,
-        `${name} nhớ mặt chữ tốt và đọc được ${dau}. Cô mong mẹ cho con luyện thêm ở nhà nhé.`,
-        `Con đã đọc được ${dau} rồi mẹ ơi. Cần luyện thêm để đọc trơn và nhanh hơn thôi.`,
-      ]));
+    const res = await fetch('https://nxhs-worker.ductrangdesign.workers.dev', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: payload,
+    });
+
+    const data = await res.json();
+    const text = data.content?.[0]?.text?.trim() || '';
+
+    if (text) {
+      textarea.value = text;
+      textarea.placeholder = '';
+      textarea.focus();
+      textarea.style.borderColor = 'var(--violet)';
+      setTimeout(() => { textarea.style.borderColor = ''; }, 1500);
     } else {
-      parts.push(p('pos_doc', [
-        `${name} đọc được rồi mẹ ơi, con nhớ mặt chữ tốt. Giờ luyện thêm để đọc nhanh và trôi hơn thôi.`,
-        `Con đọc khá tốt rồi đó mẹ. Mẹ cho con đọc thêm ở nhà để quen hơn nhé.`,
-        `${name} nhớ mặt chữ và đọc được rồi mẹ ơi. Cần luyện đều để đọc trơn hơn.`,
-        `Cô thấy ${name} đọc tiến bộ hơn rồi mẹ ơi. Mẹ cho con đọc thêm một chút ở nhà nhé.`,
-      ]));
+      throw new Error('Không có phản hồi từ AI');
     }
+  } catch (err) {
+    console.error('AI error:', err);
+    textarea.value = '';
+    textarea.placeholder = '';
+    alert('AI tạm thời không khả dụng. Vui lòng thử lại sau.');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
   }
-
-  // ── Viết ─────────────────────────────────────────────────────────────────
-  if (T.viet) {
-    parts.push(p('pos_viet', [
-      `Về viết, cô đang đẩy mạnh tập viết cho ${name}. Cô có gửi phiếu viết về nhà rồi nhé mẹ, mỗi ngày cho con viết 1 mặt phiếu thôi.`,
-      `Cô đang luyện viết cho ${name}, mẹ nhắc con viết thêm ở nhà một chút nhé. Cô gửi bài về rồi đó.`,
-      `${name} đang tập viết mẹ ơi. Cô gửi bài về nhà rồi, mẹ nhắc con viết mỗi ngày một ít để tay quen dần nhé.`,
-      `Cô có gửi phiếu viết về cho ${name} nhé mẹ. Mỗi ngày cho con viết 1 mặt thôi, tập dần dần là được.`,
-    ]));
-  }
-
-  // ── Phát âm ───────────────────────────────────────────────────────────────
-  if (T.phatam && !T.doc) {
-    const dau = _extractDau(allText);
-    if (dau) {
-      parts.push(p('pos_phatam_dau', [
-        `Con phát âm được ${dau} rồi mẹ ơi. Tuy chưa thật ổn định nhưng cô thấy con tiến bộ rõ lắm.`,
-        `${name} phát âm được ${dau} rồi đó mẹ. Mẹ ở nhà thỉnh thoảng cho con đọc thêm nhé.`,
-        `Cô vui lắm khi thấy ${name} phát âm được ${dau} rồi mẹ ơi. Cần luyện thêm cho ổn định nhé.`,
-        `${name} bắt đầu phát âm được ${dau} rồi mẹ ơi, cô thấy con đang tiến bộ từng ngày.`,
-      ]));
-    } else {
-      parts.push(p('pos_phatam', [
-        `Phát âm của ${name} có cải thiện, bé nói rõ hơn và cô hiểu con muốn nói gì hơn rồi.`,
-        `Con nói rõ hơn rồi mẹ ơi, cô thấy bé tiến bộ về phát âm trong ${isTuan?'tuần':'tháng'} này.`,
-        `${name} phát âm tốt hơn trước mẹ ơi. Mẹ khích lệ con nói thêm ở nhà nhé.`,
-        `Cô thấy ${name} nói rõ hơn và tự tin hơn trong giao tiếp rồi mẹ ơi.`,
-      ]));
-    }
-  }
-
-  // ── Tiến bộ ───────────────────────────────────────────────────────────────
-  if (T.tienbo && !T.hay_cau && !T.khong_nghe) {
-    parts.push(p('pos_tienbo', [
-      `Nhìn chung ${name} có tiến bộ trong ${isTuan?'tuần':'tháng'} này, cô rất vui.`,
-      `Cô thấy ${name} đang có những tiến bộ tốt, mẹ tiếp tục khích lệ con ở nhà nhé.`,
-      `${name} đang cải thiện dần mẹ ơi, cô hy vọng con sẽ tiếp tục giữ vững.`,
-      `Tuần này ${name} có nhiều điểm tiến bộ, cô ghi nhận và rất vui khi thấy con cố gắng.`,
-    ]));
-  } else if (T.tienbo && (T.hay_cau || T.khong_nghe)) {
-    parts.push(p('mix_tienbo', [
-      `Dù vậy, cô vẫn nhận thấy ${name} có một số tiến bộ nhất định so với trước.`,
-      `Bên cạnh những điểm cần rèn, bé cũng có những cải thiện nhỏ mà cô ghi nhận được.`,
-      `Cô vẫn thấy ${name} có tiến bộ ở một số điểm mẹ ơi, cô hy vọng con tiếp tục cố gắng.`,
-    ]));
-  }
-
-  // ── Hợp tác ───────────────────────────────────────────────────────────────
-  if (T.hoatac && !T.khong_nghe) {
-    parts.push(p('pos_hoatac', [
-      `Con hợp tác tốt với cô, nghe lời hơn trước, cô khen ${name}.`,
-      `${name} ngoan hơn và chịu phối hợp với cô hơn rồi mẹ ơi.`,
-      `Điểm cô thích là ${name} đã chịu nghe lời và phối hợp tốt hơn trong các hoạt động.`,
-      `${name} hợp tác tốt với cô trong ${isTuan?'tuần':'tháng'} này mẹ ơi, cô rất vui.`,
-    ]));
-  }
-
-  // ── Tập trung ─────────────────────────────────────────────────────────────
-  if (T.taptrung && !T.mat_taptrung) {
-    parts.push(p('pos_taptrung', [
-      `Khả năng tập trung của bé có cải thiện, bé ngồi học được lâu hơn và ít phân tâm hơn.`,
-      `${name} chú ý hơn trong giờ học, điều này giúp bé tiếp thu bài tốt hơn nhiều.`,
-      `Con ngồi yên và tập trung hơn trước rồi mẹ ơi, cô thấy tiến bộ rõ lắm.`,
-      `${name} ít bị phân tâm hơn trong ${isTuan?'tuần':'tháng'} này, cô thấy con cố gắng hơn.`,
-    ]));
-  }
-
-  // ── Cảm xúc tốt ───────────────────────────────────────────────────────────
-  if (T.camxuc_ok) {
-    parts.push(p('pos_camxuc', [
-      `Cảm xúc của bé ổn định hơn, ít khóc và ít cáu hơn so với trước.`,
-      `${name} vui vẻ hơn trong các buổi học, cô thấy bé thoải mái và hứng thú hơn.`,
-      `Con ổn định hơn rồi mẹ ơi, ít khóc và ít cáu hơn nhiều so với trước.`,
-      `Cô thấy ${name} vui hơn và thoải mái hơn trong giờ học tuần này.`,
-    ]));
-  }
-
-  // ── Giao tiếp mắt ─────────────────────────────────────────────────────────
-  if (T.giaotiep) {
-    parts.push(p('pos_giaotiep', [
-      `Con bắt đầu nhìn mắt cô nhiều hơn rồi mẹ ơi, đây là điểm cô rất vui khi thấy.`,
-      `Giao tiếp mắt của ${name} có cải thiện, bé tương tác với cô tốt hơn trước.`,
-      `${name} bắt đầu nhìn và tương tác với cô nhiều hơn, cô thấy con đang tiến bộ về điểm này.`,
-      `Cô vui khi thấy ${name} đã bắt đầu nhìn mắt cô trong các hoạt động rồi mẹ ơi.`,
-    ]));
-  }
-
-  // ── Nhận thức ─────────────────────────────────────────────────────────────
-  if (T.nhanhinh) {
-    parts.push(p('pos_nhanhinh', [
-      `Khả năng nhận biết và làm theo hướng dẫn của bé cũng tốt hơn trước.`,
-      `${name} hiểu bài và hoàn thành bài tập tốt hơn, cô rất hài lòng về điều này.`,
-      `Con nhớ bài và làm theo hướng dẫn tốt hơn trước rồi mẹ ơi.`,
-      `Cô thấy ${name} tiếp thu nhanh hơn và ghi nhớ tốt hơn trong ${isTuan?'tuần':'tháng'} này.`,
-    ]));
-  }
-
-  // ── Cần rèn ───────────────────────────────────────────────────────────────
-  if ((T.chua_on || T.hay_cau || T.khong_nghe) && !parts.some(s => s.includes('cần') || s.includes('rèn') || s.includes('nhắc'))) {
-    parts.push(p('can_ren', [
-      `Bé vẫn cần được luyện tập thêm để những điểm này cải thiện ổn định hơn.`,
-      `Cô sẽ tiếp tục nhắc và hỗ trợ bé cải thiện những điểm còn hạn chế này.`,
-      `${name} vẫn cần rèn thêm một số điểm, cô sẽ tiếp tục theo dõi và hỗ trợ con.`,
-      `Cô sẽ tiếp tục kiên nhẫn với ${name} để giúp con cải thiện dần mẹ ơi.`,
-    ]));
-  }
-
-  // ── Nghỉ ──────────────────────────────────────────────────────────────────
-  if (absentCount > 0) {
-    parts.push(p('absent', [
-      `${name} nghỉ ${absentCount} buổi trong ${isTuan?'tuần':'tháng'} này mẹ ơi, mẹ sắp xếp để con học đều hơn nhé.`,
-      `${isTuan?'Tuần':'Tháng'} này ${name} nghỉ ${absentCount} buổi, mẹ cố gắng cho con học đủ nhé.`,
-    ]));
-  }
-
-  // ── Nhắc phụ huynh ────────────────────────────────────────────────────────
-  if (T.phhome) {
-    parts.push(p('phhome', [
-      `Mẹ nhớ nhắc ${name} luyện thêm ở nhà nhé, chỉ cần 15-20 phút mỗi ngày thôi là được.`,
-      `Mẹ phối hợp nhắc con luyện ở nhà giúp cô với nhé. Mỗi ngày một ít thôi mẹ ơi.`,
-      `Cô mong mẹ nhắc ${name} luyện thêm ở nhà theo hướng dẫn của cô nhé.`,
-      `Mẹ nhắc con ôn thêm ở nhà một chút nhé, không cần nhiều, mỗi ngày 15-20 phút thôi.`,
-    ]));
-  }
-
-  // ── Kết ───────────────────────────────────────────────────────────────────
-  if (tone === 'neg') {
-    parts.push(p('close_neg', [
-      `Cô sẽ tiếp tục kiên nhẫn với ${name}, mẹ có gì cần trao đổi thêm thì nhắn cô nhé.`,
-      `Cô sẽ cố gắng tìm cách phù hợp hơn với con. Mẹ phối hợp cùng cô nhé.`,
-      `Cô vẫn đang đồng hành cùng ${name}, mẹ yên tâm nhé. Có gì mẹ cứ nhắn cô.`,
-      `Mẹ ơi, cô sẽ tiếp tục hỗ trợ ${name}. Mẹ có gì cần chia sẻ thì nhắn cô nhé.`,
-    ]));
-  } else {
-    parts.push(p('close_pos', [
-      `${isTuan?'Tuần':'Tháng'} tới cô sẽ tiếp tục theo dõi và hỗ trợ con. Mẹ có gì nhắn cô nhé.`,
-      `Cô và ${name} sẽ tiếp tục cố gắng nhé mẹ. Cảm ơn mẹ đã luôn phối hợp cùng cô.`,
-      `Cô rất vui được dạy ${name}. Mẹ có gì cần trao đổi cứ nhắn cô nhé.`,
-      `${isTuan?'Tuần':'Tháng'} tới cô sẽ điều chỉnh thêm cho phù hợp với ${name}. Mẹ cứ nhắn cô nếu cần nhé.`,
-    ]));
-  }
-
-  textarea.value = parts.join(' ');
-  textarea.placeholder = '';
-  textarea.focus();
-  textarea.style.borderColor = 'var(--violet)';
-  setTimeout(() => { textarea.style.borderColor = ''; }, 1500);
 }
 
 function generateWeekSummary(st, sessions, label) {

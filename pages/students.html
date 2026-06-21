@@ -197,7 +197,7 @@
 <script src="../components/components-loader.js" type="module"></script>
 
 <script type="module">
-import { Store, avatarColor, initials, age, fmtDate, fmtMoney, todayStr } from '../shared/store.js';
+import { Store, avatarColor, initials, age, fmtDate, fmtMoney, todayStr , displayName } from '../shared/store.js';
 
 const DAYS_SHORT = ['CN','T2','T3','T4','T5','T6','T7'];
 const page = document.getElementById('pageStudents');
@@ -261,7 +261,7 @@ function render() {
         </div>
         <div class="student-body">
           <div class="student-name">
-            ${st.name}
+            ${displayName(st)}
             ${st.status === 'inactive' ? `<span class="tag" style="margin-left:6px">Đã nghỉ</span>` : ''}
             ${stDebts.length ? `<span class="tag red" style="margin-left:6px">Nợ ${stDebts.reduce((a,d)=>a+d.slots,0)} ca</span>` : ''}
           </div>
