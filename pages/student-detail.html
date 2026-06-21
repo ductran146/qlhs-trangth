@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Chi tiết học sinh — Nhật ký can thiệp</title>
-<link rel="stylesheet" href="../shared/styles.css">
-<link rel="stylesheet" href="../shared/components.css">
+<link rel="stylesheet" href="../shared/styles.css?v=20260621-sync3">
+<link rel="stylesheet" href="../shared/components.css?v=20260621-sync3">
 </head>
 <body>
 <div class="app-shell">
@@ -20,7 +20,7 @@
   <div data-component="student-modal"></div>
 </div>
 
-<script src="../components/components-loader.js" type="module"></script>
+<script src="../components/components-loader.js?v=20260621-sync3" type="module"></script>
 
 <script type="module">
 import {
@@ -34,7 +34,7 @@ import {
   statusLabel,
   getWeekRange,
   todayStr,
-} from '../shared/store.js';
+} from '../shared/store.js?v=20260621-sync3';
 
 const DAYS_SHORT = ['CN','T2','T3','T4','T5','T6','T7'];
 const page = document.getElementById('pageStudentDetail');
@@ -120,8 +120,8 @@ function render() {
           <h2>Tuần ${week.label}</h2>
         </div>
         <div class="detail-actions">
-          <button class="icon-btn" data-action="prev-week" aria-label="Tuần trước"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M15 6C15 6 9.00001 10.4189 9 12C8.99999 13.5812 15 18 15 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-          <button class="icon-btn" data-action="next-week" aria-label="Tuần sau"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9.00005 6C9.00005 6 15 10.4189 15 12C15 13.5812 9 18 9 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button class="icon-btn" data-action="prev-week" aria-label="Tuần trước">‹</button>
+          <button class="icon-btn" data-action="next-week" aria-label="Tuần sau">›</button>
           <button class="btn btn-primary" data-action="export-week"><span class="emoji" aria-hidden="true">📄</span> Xuất tuần</button>
         </div>
       </div>
@@ -136,8 +136,8 @@ function render() {
           <h2>${month.label}</h2>
         </div>
         <div class="detail-actions">
-          <button class="icon-btn" data-action="prev-month" aria-label="Tháng trước"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M15 6C15 6 9.00001 10.4189 9 12C8.99999 13.5812 15 18 15 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-          <button class="icon-btn" data-action="next-month" aria-label="Tháng sau"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9.00005 6C9.00005 6 15 10.4189 15 12C15 13.5812 9 18 9 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button class="icon-btn" data-action="prev-month" aria-label="Tháng trước">‹</button>
+          <button class="icon-btn" data-action="next-month" aria-label="Tháng sau">›</button>
           <button class="btn btn-primary" data-action="export-month"><span class="emoji" aria-hidden="true">📄</span> Xuất tháng</button>
         </div>
       </div>
@@ -159,26 +159,14 @@ function bindEvents(ctx) {
   page.querySelector('[data-action="next-month"]')?.addEventListener('click', () => { monthOffset += 1; render(); });
 
   page.querySelector('[data-action="ai-week"]')?.addEventListener('click', () => {
-    aiGenerateReport({
-      mode: 'week',
-      st,
-      sessions: weekSessions,
-      label: `Tuần ${week.label}`,
-      weekReports: [],
-      textarea: page.querySelector('[data-report-content="week"]'),
-      btn: page.querySelector('[data-action="ai-week"]'),
-    });
+    const text = generateWeekSummary(st, weekSessions, `Tuần ${week.label}`);
+    page.querySelector('[data-report-content="week"]').value = text;
+    page.querySelector('[data-report-content="week"]').focus();
   });
   page.querySelector('[data-action="ai-month"]')?.addEventListener('click', () => {
-    aiGenerateReport({
-      mode: 'month',
-      st,
-      sessions: monthSessions,
-      label: month.label,
-      weekReports: weekReportsInMonth,
-      textarea: page.querySelector('[data-report-content="month"]'),
-      btn: page.querySelector('[data-action="ai-month"]'),
-    });
+    const text = generateMonthSummary(st, monthSessions, weekReportsInMonth, month.label);
+    page.querySelector('[data-report-content="month"]').value = text;
+    page.querySelector('[data-report-content="month"]').focus();
   });
   page.querySelector('[data-action="save-week-report"]')?.addEventListener('click', () => {
     saveReport(st, 'week', week.start, week.end, `Tuần ${week.label}`, valueOfReport('week'));
@@ -221,7 +209,7 @@ function summaryTemplate({ st, sessions, report, mode, label, weekReports = [] }
       <div class="ai-summary-head">
         <div class="summary-note-title"><span class="emoji" aria-hidden="true">✨</span> Nhận xét ${mode === 'week' ? 'tuần' : 'tháng'} gửi phụ huynh</div>
       </div>
-      <textarea class="ai-summary-textarea" data-report-content="${mode}" rows="7" placeholder="${hasSource ? 'Nhập từ khóa gợi ý (tùy chọn) rồi bấm AI tạo nhận xét...' : 'Chưa có dữ liệu nhận xét để tổng hợp.'}">${escapeHTML(draft)}</textarea>
+      <textarea class="ai-summary-textarea" data-report-content="${mode}" rows="7" placeholder="${hasSource ? 'Bấm AI tạo nhận xét hoặc tự nhập nội dung tổng hợp...' : 'Chưa có dữ liệu nhận xét để tổng hợp.'}">${escapeHTML(draft)}</textarea>
       <div class="ai-summary-actions">
         <button class="btn btn-outline" data-action="ai-${mode}" ${hasSource ? '' : 'disabled'}><span class="emoji" aria-hidden="true">🤖</span> AI tạo nhận xét</button>
         <button class="btn btn-primary" data-action="save-${mode}-report">Lưu nhận xét</button>
@@ -275,7 +263,9 @@ function sessionListTemplate(sessions) {
               <span class="status-pill status-${status}">${statusText}</span>
               ${hideNote ? '' : `
               <button class="session-note-toggle" type="button" data-session-toggle aria-label="Mở rộng hoặc thu gọn nhận xét" aria-expanded="${isOpen ? 'true' : 'false'}">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="transform:rotate(90deg)"><path d="M9.00005 6C9.00005 6 15 10.4189 15 12C15 13.5812 9 18 9 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
               </button>`}
             </div>
           </div>
@@ -341,124 +331,6 @@ function saveReport(st, type, start, end, label, content) {
 
 function valueOfReport(mode) {
   return page.querySelector(`[data-report-content="${mode}"]`)?.value.trim() || '';
-}
-
-
-// ── AI Report Generation (Claude API) ────────────────────────────────────────
-
-async function aiGenerateReport({ mode, st, sessions, label, weekReports, textarea, btn }) {
-  if (!textarea || !btn) return;
-
-  // Lấy từ khóa người dùng đã nhập vào textarea (nếu có)
-  const userKeywords = textarea.value.trim();
-
-  // Thu thập nhận xét từng ngày
-  const taught = sessions.filter(s =>
-    s.status === 'taught' || s.status === 'partial' ||
-    s.status === 'makeup' || s.type === 'makeup'
-  );
-  const sessionNotes = sessions
-    .map(s => {
-      const note = sessionNoteText(s);
-      if (!note) return null;
-      const d = new Date(s.date + 'T00:00:00');
-      const day = ['Chủ nhật','Thứ 2','Thứ 3','Thứ 4','Thứ 5','Thứ 6','Thứ 7'][d.getDay()];
-      return `${day} ${fmtDatePlain(s.date)}: ${note}`;
-    })
-    .filter(Boolean);
-
-  const totalSlots = taught.reduce((a, s) => a + actualSlots(s), 0);
-  const absentCount = sessions.filter(s => s.status === 'absent').length;
-  const busyCount = sessions.filter(s => s.status === 'busy').length;
-
-  // Build data context
-  let dataContext = '';
-  if (mode === 'week') {
-    dataContext = [
-      `Tên bé: ${st.name}`,
-      `Kỳ: ${label}`,
-      `Tổng ca đã học: ${totalSlots}`,
-      absentCount ? `Số buổi bé nghỉ: ${absentCount}` : '',
-      busyCount ? `Số buổi cô bận: ${busyCount}` : '',
-      sessionNotes.length ? `\nNhận xét từng buổi:\n${sessionNotes.join('\n')}` : '',
-      userKeywords ? `\nTừ khóa / gợi ý thêm từ giáo viên: ${userKeywords}` : '',
-    ].filter(Boolean).join('\n');
-  } else {
-    const weekTexts = weekReports.map(r => r.content).filter(Boolean);
-    dataContext = [
-      `Tên bé: ${st.name}`,
-      `Kỳ: ${label}`,
-      `Tổng ca đã học trong tháng: ${totalSlots}`,
-      absentCount ? `Số buổi bé nghỉ: ${absentCount}` : '',
-      weekTexts.length ? `\nNhận xét theo tuần:\n${weekTexts.join('\n---\n')}` : '',
-      sessionNotes.length ? `\nNhận xét từng buổi:\n${sessionNotes.join('\n')}` : '',
-      userKeywords ? `\nTừ khóa / gợi ý thêm từ giáo viên: ${userKeywords}` : '',
-    ].filter(Boolean).join('\n');
-  }
-
-  if (!sessionNotes.length && !weekReports.length) {
-    alert('Chưa có nhận xét nào để tạo báo cáo.');
-    return;
-  }
-
-  // UI loading
-  const originalHTML = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = '<span style="opacity:.6">Đang tạo...</span>';
-  textarea.value = '';
-  textarea.placeholder = 'AI đang viết nhận xét...';
-
-  const systemPrompt = `Bạn là một giáo viên can thiệp sớm cho trẻ đặc biệt tại Việt Nam.
-Nhiệm vụ: viết nhận xét ${mode === 'week' ? 'tuần' : 'tháng'} gửi phụ huynh.
-
-Quy tắc bắt buộc:
-- Viết bằng tiếng Việt, giọng nhẹ nhàng, chân thật như giáo viên tự viết tay — KHÔNG dùng từ ngữ hoa mỹ, sáo rỗng.
-- Độ dài: ${mode === 'week' ? '3–5 câu' : '5–7 câu'}. Không dùng gạch đầu dòng, không chia section.
-- Bắt đầu bằng tình hình học tập cụ thể trong ${mode === 'week' ? 'tuần' : 'tháng'}.
-- Nêu 1–2 điểm tiến bộ hoặc điểm cần chú ý dựa trên nhận xét thực tế.
-- Kết thúc bằng 1 câu định hướng tuần/tháng tới hoặc gợi ý cho phụ huynh — ngắn gọn, thực tế.
-- Nếu có từ khóa từ giáo viên, lồng ghép tự nhiên vào bài.
-- Không bịa thêm thông tin không có trong dữ liệu.
-- Không bắt đầu bằng "Kính gửi" hay lời chào.`;
-
-  try {
-    const response = await fetch('https://qlhs-ai-proxy.ductrangdesign.workers.dev/api/ai-report', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 1000,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: dataContext }],
-      }),
-    });
-
-    const data = await response.json();
-    const text = data.content?.find(b => b.type === 'text')?.text?.trim() || '';
-
-    if (text) {
-      textarea.value = text;
-      textarea.placeholder = '';
-      textarea.focus();
-      // Highlight textarea nhẹ
-      textarea.style.borderColor = 'var(--violet)';
-      setTimeout(() => { textarea.style.borderColor = ''; }, 1500);
-    } else {
-      throw new Error(data.error?.message || 'Không có phản hồi từ AI');
-    }
-  } catch (err) {
-    console.error('AI error:', err);
-    // Fallback về template cũ
-    const fallback = mode === 'week'
-      ? generateWeekSummary(st, sessions, label)
-      : generateMonthSummary(st, sessions, weekReports, label);
-    textarea.value = fallback;
-    textarea.placeholder = '';
-    alert('AI tạm thời không khả dụng. Đã dùng bản tổng hợp tự động.');
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = originalHTML;
-  }
 }
 
 function generateWeekSummary(st, sessions, label) {
