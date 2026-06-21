@@ -28,7 +28,10 @@ export function render(el, dataset) {
         <div class="form-row">
           <div class="form-group" style="grid-column:1/-1">
             <label class="form-label">Họ và tên *</label>
-            <input class="form-input" id="smName" type="text" placeholder="Bé Nguyễn Văn An">
+            <div class="sm-field-wrap">
+              <input class="form-input" id="smName" type="text" placeholder="Bé Nguyễn Văn An">
+              <button type="button" class="sm-field-clear" aria-label="Xóa" tabindex="-1" hidden></button>
+            </div>
           </div>
         </div>
 
@@ -51,7 +54,14 @@ export function render(el, dataset) {
         <div class="form-row sm-start-status-row">
           <div class="form-group sm-start-date-group">
             <label class="form-label">Ngày bắt đầu học *</label>
-            <input class="form-input ds-date-input" id="smStartDate" type="text" inputmode="numeric" autocomplete="off" placeholder="dd/mm/yyyy">
+            <div class="sm-date-wrap">
+              <button type="button" class="form-input sm-date-display" id="smDateDisplay" autocomplete="off" aria-haspopup="true">
+                <span id="smDateText">Chọn ngày</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M8 2v3M16 2v3M3 8h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <input type="hidden" id="smStartDate">
+              <div class="sm-calendar" id="smCalendar" hidden></div>
+            </div>
           </div>
           <div class="form-group sm-status-group is-edit-only" id="smStatusGroup" style="display:none">
             <label class="form-label">Trạng thái học sinh</label>
@@ -67,11 +77,17 @@ export function render(el, dataset) {
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">Tên bố</label>
-            <input class="form-input" id="smFatherName" type="text" placeholder="Anh/Chú...">
+            <div class="sm-field-wrap">
+              <input class="form-input" id="smFatherName" type="text" placeholder="Anh/Chú...">
+              <button type="button" class="sm-field-clear" aria-label="Xóa" tabindex="-1" hidden></button>
+            </div>
           </div>
           <div class="form-group">
             <label class="form-label">Tên mẹ</label>
-            <input class="form-input" id="smMotherName" type="text" placeholder="Chị/Cô...">
+            <div class="sm-field-wrap">
+              <input class="form-input" id="smMotherName" type="text" placeholder="Chị/Cô...">
+              <button type="button" class="sm-field-clear" aria-label="Xóa" tabindex="-1" hidden></button>
+            </div>
           </div>
         </div>
 
@@ -82,8 +98,11 @@ export function render(el, dataset) {
 
         <div class="form-group">
           <label class="form-label">Mục tiêu can thiệp</label>
-          <textarea class="form-input" id="smGoal" rows="2"
-            placeholder="Phát triển ngôn ngữ, tăng tập trung..."></textarea>
+          <div class="sm-field-wrap sm-field-wrap--ta">
+            <textarea class="form-input" id="smGoal" rows="2"
+              placeholder="Phát triển ngôn ngữ, tăng tập trung..."></textarea>
+            <button type="button" class="sm-field-clear" aria-label="Xóa" tabindex="-1" hidden></button>
+          </div>
         </div>
 
         <div class="modal-section">Lịch học &amp; học phí</div>
@@ -96,7 +115,7 @@ export function render(el, dataset) {
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">Giờ bắt đầu</label>
-            <input class="form-input ds-time-input" id="smTime" type="text" inputmode="numeric" autocomplete="off" placeholder="HH:mm" value="08:00">
+            <input class="form-input" id="smTime" type="time" value="08:00">
           </div>
           <div class="form-group">
             <label class="form-label">Số ca mỗi lịch học</label>
@@ -111,7 +130,10 @@ export function render(el, dataset) {
 
         <div class="form-group">
           <label class="form-label">Học phí / ca (VND)</label>
-          <input class="form-input" id="smFee" type="number" placeholder="200000" min="0">
+          <div class="sm-field-wrap">
+            <input class="form-input sm-fee-input" id="smFee" type="text" inputmode="numeric" placeholder="110.000" autocomplete="off">
+            <button type="button" class="sm-field-clear" aria-label="Xóa" tabindex="-1" hidden></button>
+          </div>
         </div>
 
         <div class="modal-footer">
@@ -128,11 +150,11 @@ export function render(el, dataset) {
   // Events
   el.querySelector('#smClose')?.addEventListener('click', close);
   el.querySelector('#smCancel').addEventListener('click', close);
-  el.querySelector('#studentModalOverlay').addEventListener('click', e => {
-    if (e.target === el.querySelector('#studentModalOverlay')) close();
-  });
+  // Không đóng khi click backdrop — chỉ đóng bằng nút X hoặc Hủy
   el.querySelector('#smSave').addEventListener('click', () => _save(el));
-  _bindDateTimeFields(el);
+  _buildCalendar(el);
+  _bindClearButtons(el);
+  _bindFeeInput(el);
   _bindKeyboardAssist(el);
 
   // Expose open/close globally so pages can call them
@@ -162,17 +184,17 @@ function _open(el, id = null) {
   el.querySelector('#smName').value    = st?.name    || '';
   el.querySelector('#smBirthYear').value = _yearFromDob(st?.dob || '');
   el.querySelector('#smGender').value  = st?.gender  || 'Nam';
-  el.querySelector('#smStartDate').value = _formatDateForInput(st?.startDate || todayStr());
+  _setCalendarDate(el, st?.startDate || todayStr());
   el.querySelector('#smStatus').value = st?.status || 'active';
   el.querySelector('#smGoal').value    = st?.goal    || '';
   el.querySelector('#smFatherName').value = st?.fatherName || '';
   el.querySelector('#smMotherName').value = st?.motherName || '';
   el.querySelector('#smTime').value    = _formatTimeForInput(st?.schedTime || '08:00');
   el.querySelector('#smDuration').value = String(st?.duration || 1);
-  el.querySelector('#smFee').value     = st?.feePerSlot || '';
+  el.querySelector('#smFee').value     = st?.feePerSlot ? _formatFee(st.feePerSlot) : '';
 
   _buildDiffPicker(el, st?.difficulties || []);
-  _buildDayPicker(el, st?.schedDays || []);
+  _buildDayPicker(el, st?.schedDays ?? [1,2,3,4,5,6]);
 
   document.body.classList.add('modal-open');
   el.querySelector('#studentModalOverlay').classList.add('open');
@@ -236,7 +258,7 @@ function _save(el) {
   const schedDays    = [...el.querySelectorAll('.day-chip.selected')].map(c => +c.dataset.day);
   const difficulties = [...el.querySelectorAll('.diff-chip.selected')].map(c => c.dataset.d);
 
-  const startDate = _parseDateInput(el.querySelector('#smStartDate').value) || todayStr();
+  const startDate = el.querySelector('#smStartDate').value || todayStr();
 
   Store.upsertStudent({
     id: _editingId || uid(),
@@ -250,14 +272,181 @@ function _save(el) {
     fatherName: el.querySelector('#smFatherName').value.trim(),
     motherName: el.querySelector('#smMotherName').value.trim(),
     schedDays,
-    schedTime:  _parseTimeInput(el.querySelector('#smTime').value) || '08:00',
+    schedTime:  el.querySelector('#smTime').value || '08:00',
     duration:   +el.querySelector('#smDuration').value,
-    feePerSlot: +el.querySelector('#smFee').value || 0,
+    feePerSlot: _parseFee(el.querySelector('#smFee').value),
   });
 
   close();
 }
 
+
+
+// ── Calendar picker ──────────────────────────────────────────────────────────
+
+function _setCalendarDate(el, isoDate) {
+  const hidden = el.querySelector('#smStartDate');
+  const display = el.querySelector('#smDateText');
+  if (!hidden || !display) return;
+  hidden.value = isoDate || '';
+  if (isoDate) {
+    const [y, m, d] = isoDate.split('-');
+    display.textContent = `${Number(d)}/${Number(m)}/${y}`;
+  } else {
+    display.textContent = 'Chọn ngày';
+  }
+}
+
+function _buildCalendar(el) {
+  const btn = el.querySelector('#smDateDisplay');
+  const cal = el.querySelector('#smCalendar');
+  if (!btn || !cal) return;
+
+  // State
+  const now = new Date();
+  let viewYear  = now.getFullYear();
+  let viewMonth = now.getMonth(); // 0-based
+
+  const MONTHS_VN = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
+                     'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
+  const DAYS_VN   = ['CN','T2','T3','T4','T5','T6','T7'];
+
+  function getSelected() {
+    return el.querySelector('#smStartDate').value || '';
+  }
+
+  function renderCal() {
+    const selected = getSelected();
+    const firstDay = new Date(viewYear, viewMonth, 1).getDay(); // 0=CN
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+
+    let cells = '';
+    // Ô trống đầu tháng
+    for (let i = 0; i < firstDay; i++) cells += '<div class="sm-cal-day empty"></div>';
+    for (let d = 1; d <= daysInMonth; d++) {
+      const iso = `${viewYear}-${String(viewMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const isSelected = iso === selected;
+      const isToday = iso === todayStr();
+      cells += `<button type="button" class="sm-cal-day${isSelected?' selected':''}${isToday?' today':''}" data-date="${iso}">${d}</button>`;
+    }
+
+    cal.innerHTML = `
+      <div class="sm-cal-head">
+        <button type="button" class="sm-cal-nav" id="smCalPrev" aria-label="Tháng trước">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M15 6C15 6 9.00001 10.4189 9 12C8.99999 13.5812 15 18 15 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <span class="sm-cal-title">${MONTHS_VN[viewMonth]} ${viewYear}</span>
+        <button type="button" class="sm-cal-nav" id="smCalNext" aria-label="Tháng sau">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9.00005 6C9.00005 6 15 10.4189 15 12C15 13.5812 9 18 9 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+      <div class="sm-cal-weekdays">${DAYS_VN.map(d=>`<div>${d}</div>`).join('')}</div>
+      <div class="sm-cal-grid">${cells}</div>`;
+
+    cal.querySelector('#smCalPrev')?.addEventListener('click', () => {
+      viewMonth--; if (viewMonth < 0) { viewMonth = 11; viewYear--; } renderCal();
+    });
+    cal.querySelector('#smCalNext')?.addEventListener('click', () => {
+      viewMonth++; if (viewMonth > 11) { viewMonth = 0; viewYear++; } renderCal();
+    });
+    cal.querySelectorAll('.sm-cal-day[data-date]').forEach(dayBtn => {
+      dayBtn.addEventListener('click', () => {
+        _setCalendarDate(el, dayBtn.dataset.date);
+        cal.hidden = true;
+        btn.setAttribute('aria-expanded', 'false');
+        renderCal();
+      });
+    });
+  }
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isHidden = cal.hidden;
+    cal.hidden = !isHidden;
+    btn.setAttribute('aria-expanded', String(isHidden));
+    if (isHidden) {
+      // Reset view về tháng của ngày đang chọn hoặc tháng hiện tại
+      const sel = getSelected();
+      if (sel) {
+        const [y, m] = sel.split('-');
+        viewYear = Number(y); viewMonth = Number(m) - 1;
+      } else {
+        viewYear = now.getFullYear(); viewMonth = now.getMonth();
+      }
+      renderCal();
+    }
+  });
+
+  // Đóng calendar khi click ra ngoài
+  document.addEventListener('click', (e) => {
+    if (!cal.hidden && !cal.contains(e.target) && e.target !== btn) {
+      cal.hidden = true;
+      btn.setAttribute('aria-expanded', 'false');
+    }
+  }, { capture: true });
+}
+
+
+// ── Clear button & fee format helpers ────────────────────────────────────────
+
+const CLEAR_SVG = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 4L4 12M4 4l8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+
+function _bindClearButtons(el) {
+  el.querySelectorAll('.sm-field-wrap').forEach(wrap => {
+    const field = wrap.querySelector('input, textarea');
+    const btn   = wrap.querySelector('.sm-field-clear');
+    if (!field || !btn) return;
+
+    btn.innerHTML = CLEAR_SVG;
+
+    const update = () => {
+      btn.hidden = field.value.trim() === '';
+    };
+
+    field.addEventListener('input', update);
+    field.addEventListener('focus', update);
+    field.addEventListener('blur', () => {
+      // Delay để click clear không bị blur trước
+      setTimeout(update, 150);
+    });
+
+    btn.addEventListener('mousedown', e => e.preventDefault()); // giữ focus
+    btn.addEventListener('click', () => {
+      field.value = '';
+      field.focus();
+      btn.hidden = true;
+      field.dispatchEvent(new Event('input'));
+    });
+  });
+}
+
+function _formatFee(value) {
+  const num = parseInt(String(value).replace(/\D/g, ''), 10);
+  if (!num) return '';
+  return num.toLocaleString('vi-VN');
+}
+
+function _parseFee(value) {
+  return parseInt(String(value || '').replace(/\D/g, ''), 10) || 0;
+}
+
+function _bindFeeInput(el) {
+  const fee = el.querySelector('#smFee');
+  if (!fee) return;
+  fee.addEventListener('input', () => {
+    const raw   = fee.value.replace(/\D/g, '');
+    const num   = parseInt(raw, 10);
+    const cursor = fee.selectionStart;
+    const prevLen = fee.value.length;
+    fee.value = raw ? num.toLocaleString('vi-VN') : '';
+    // Giữ vị trí cursor tương đối
+    const diff = fee.value.length - prevLen;
+    try { fee.setSelectionRange(cursor + diff, cursor + diff); } catch(_) {}
+    // Cập nhật clear button
+    const btn = fee.closest('.sm-field-wrap')?.querySelector('.sm-field-clear');
+    if (btn) btn.hidden = fee.value.trim() === '';
+  });
+}
 
 function _yearOptions() {
   const currentYear = new Date().getFullYear();
