@@ -234,33 +234,31 @@ function sessionListTemplate(sessions) {
     return `<div class="empty-detail-note">Chưa có ca học nào trong tuần này.</div>`;
   }
 
-  const firstEmptyNoteIndex = sessions.findIndex(s => !shouldHideSessionNote(s.status || 'pending') && !sessionNoteText(s));
-  const firstExpandableIndex = firstEmptyNoteIndex >= 0
-    ? firstEmptyNoteIndex
-    : sessions.findIndex(s => !shouldHideSessionNote(s.status || 'pending'));
-
   return `
     <div class="session-note-list">
-      ${sessions.map((s, index) => {
+      ${sessions.map(s => {
         const note = sessionNoteText(s);
         const status = s.status || 'pending';
         const statusText = statusLabel(status) || 'Chưa chấm';
         const hideNote = shouldHideSessionNote(status);
-        const isOpen = !hideNote && index === firstExpandableIndex;
         const noteBody = hideNote ? '' : `
-          <div class="session-note-content" ${isOpen ? '' : 'hidden'}>
-            <textarea class="session-note-textarea" rows="3" placeholder="Nhận xét buổi học..." data-session-id="${escapeHTML(s.id)}">${escapeHTML(note)}</textarea>
+          <div class="session-note-content" hidden>
+            <textarea class="session-note-textarea" rows="3" placeholder="Nhận xét buổi học..." data-session-id="${escapeHTML(s.id)}" data-original="${escapeHTML(note)}">${escapeHTML(note)}</textarea>
+            <div class="session-note-editor-actions">
+              <button class="btn btn-sm btn-outline" type="button" data-action="note-cancel" data-session-id="${escapeHTML(s.id)}">Hủy</button>
+              <button class="btn btn-sm btn-primary" type="button" data-action="note-save" data-session-id="${escapeHTML(s.id)}">Lưu</button>
+            </div>
           </div>`;
 
         return `
-        <article class="session-note-item${hideNote ? ' no-note' : ''}${isOpen ? ' is-open' : ''}" data-session-note-item="${escapeHTML(s.id || '')}">
+        <article class="session-note-item${hideNote ? ' no-note' : ''}" data-session-note-item="${escapeHTML(s.id || '')}">
           <div class="session-note-head">
             <div class="session-note-head-main">
               <strong>${fmtDate(s.date)}</strong>
             </div>
             <div class="session-note-status-wrap">
               <span class="status-pill status-${status}">${statusText}</span>
-              <button class="session-note-toggle${hideNote ? ' is-disabled' : ''}" type="button" ${hideNote ? 'disabled' : 'data-session-toggle'} aria-label="Mở rộng hoặc thu gọn nhận xét" aria-expanded="${isOpen ? 'true' : 'false'}">
+              <button class="session-note-toggle${hideNote ? ' is-disabled' : ''}" type="button" ${hideNote ? 'disabled' : 'data-session-toggle'} aria-label="Mở rộng hoặc thu gọn nhận xét" aria-expanded="false">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9.00005 6C9.00005 6 15 10.4189 15 12C15 13.5812 9 18 9 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
             </div>
@@ -289,22 +287,46 @@ function bindSessionNoteToggles() {
   });
 }
 
+function autoResizeTextarea(ta) {
+  ta.style.height = 'auto';
+  ta.style.height = ta.scrollHeight + 'px';
+}
+
 function bindInlineNoteEditors() {
-  let saveTimer = null;
+  // Auto-resize cho các trình duyệt chưa hỗ trợ field-sizing
+  page.querySelectorAll('.session-note-textarea').forEach(ta => {
+    autoResizeTextarea(ta);
+    ta.addEventListener('input', () => autoResizeTextarea(ta));
+  });
 
-  page.querySelectorAll('.session-note-textarea').forEach(textarea => {
-    const sessionId = textarea.dataset.sessionId;
-    if (!sessionId) return;
+  page.querySelectorAll('[data-action="note-save"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const sessionId = btn.dataset.sessionId;
+      const item      = btn.closest('[data-session-note-item]');
+      const textarea  = item?.querySelector('.session-note-textarea');
+      if (!sessionId || !textarea) return;
 
-    textarea.addEventListener('blur', async () => {
-      clearTimeout(saveTimer);
-      const text = textarea.value.trim();
-      // Chỉ lưu nếu có thay đổi
-      const session = Store.get('sessions').find(s => s.id === sessionId);
-      const current = String(session?.note || session?.noteText || '').trim();
-      if (text !== current) {
-        await Store.upsertSession({ id: sessionId, note: text });
-      }
+      const origDisabled = btn.disabled;
+      btn.disabled = true;
+      btn.textContent = 'Đang lưu...';
+
+      await Store.upsertSession({ id: sessionId, note: textarea.value.trim() });
+      // Store.subscribe('sessions') trigger render() → UI tự reset
+    });
+  });
+
+  page.querySelectorAll('[data-action="note-cancel"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const item     = btn.closest('[data-session-note-item]');
+      const body     = item?.querySelector('.session-note-content');
+      const textarea = item?.querySelector('.session-note-textarea');
+      const toggle   = item?.querySelector('[data-session-toggle]');
+      if (!item || !body || !textarea) return;
+
+      textarea.value = textarea.dataset.original || '';
+      body.hidden = true;
+      item.classList.remove('is-open');
+      toggle?.setAttribute('aria-expanded', 'false');
     });
   });
 }
