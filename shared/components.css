@@ -2520,57 +2520,45 @@
   color: var(--violet-d);
 }
 
-/* ── Inline note editor ──────────────────────────────────────────────────── */
-.session-note-actions {
-  padding: 0 var(--space-3) var(--space-3);
-}
-
-.session-note-edit-btn {
-  border: none;
-  background: none;
-  color: var(--violet);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 0;
-}
-
-.session-note-editor {
-  padding: var(--space-3);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
+/* ── Inline note textarea ────────────────────────────────────────────────── */
 .session-note-textarea {
+  display: block;
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 10px 12px;
+  border: none;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  padding: 12px var(--space-3);
   font-size: 13px;
   line-height: 1.5;
   font-family: inherit;
   color: var(--ink);
-  background: var(--surface);
-  resize: vertical;
+  background: var(--bg);
+  resize: none;
   outline: none;
+  min-height: 64px;
 }
 
 .session-note-textarea:focus {
-  border-color: var(--violet);
+  background: var(--surface);
+  border-top-color: var(--violet);
 }
 
-.session-note-editor-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
+/* ── Toggle arrow: xoay 180° khi is-open ────────────────────────────────── */
+.session-note-toggle svg {
+  transition: transform 0.2s ease;
+  transform: rotate(90deg);
 }
 
-.btn-sm {
-  min-height: 32px;
-  padding: 0 14px;
-  font-size: 12px;
+.session-note-item.is-open .session-note-toggle svg {
+  transform: rotate(-90deg);
+}
+
+/* ── Toggle disabled (nghỉ / bận) ───────────────────────────────────────── */
+.session-note-toggle.is-disabled {
+  opacity: 0.3;
+  cursor: default;
+  pointer-events: none;
 }
 
 @media (max-width: 767px) {
