@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Nhật ký can thiệp</title>
+</head>
+<body>
+<script type="module">
+  import { Auth } from './shared/auth.js';
+  await Auth.ready();
+  const target = Auth.isLoggedIn() ? 'pages/checkin.html' : 'pages/login.html';
+  location.replace(target);
+</script>
+</body>
+</html>
