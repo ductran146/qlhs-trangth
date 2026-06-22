@@ -9,27 +9,19 @@
 <style>
 /* ── Layout ───────────────────────────────────────────────────── */
 #pageSchedule {
-  padding: 0 16px;
-  padding-bottom: 24px;
+  padding: 16px;
+  padding-bottom: calc(var(--nav-h) + 24px);
+  max-width: var(--content-max);
+  margin: 0 auto;
+  gap: 20px;
 }
 
 /* ── Day picker ───────────────────────────────────────────────── */
 .sched-day-tabs-wrap {
   position: sticky;
-  top: 64px; /* mobile: topbar fixed 64px */
+  top: 16px;           /* topbar height */
   z-index: 30;
   background: var(--bg);
-  padding: 20px 0 20px;
-}
-
-/* Tablet+ : topbar không fixed, top nhỏ hơn */
-@media (min-width: 640px) {
-  .sched-day-tabs-wrap {
-    top: 0px;
-    padding: 20px 0;
-    margin-bottom: 0;
-    border-bottom: none;
-  }
 }
 .sched-day-tabs {
   display: flex;
@@ -239,7 +231,6 @@
   z-index: 1;
   background: var(--bg);
   margin: 0 0 16px;
-  padding-top: 8px;
 }
 
 /* ── Current day title: keep visible on mobile ────────────────── */
@@ -261,24 +252,35 @@
   max-height: none !important;
 }
 
-@media (max-width: 639px) {
+@media (max-width: 767px) {
+  .sched-day-tabs-wrap {
+    top: var(--mobile-fixed-header-h, 64px);
+    padding: 10px 16px 10px !important;
+    margin-bottom: 16px !important;
+  }
+
   .sched-current-day-title {
     font-size: 18px !important;
+    line-height: 1.35 !important;
+    margin: 0 0 12px !important;
+  }
+
+  .sched-day-content-head {
+    margin-bottom: 18px !important;
   }
 }
 
 </style>
 </head>
 <body>
+<div data-component="sidebar" data-active="schedule"></div>
+
 <div class="app-shell">
+  <div data-component="topbar" data-title="Thời gian biểu"></div>
 
-  <div data-component="sidebar" data-active="schedule"></div>
-
-  <div class="main-content">
-    <div data-component="topbar" data-title="Thời gian biểu"></div>
-    <div class="page" id="pageSchedule"></div>
-  </div>
-
+  <main id="pageSchedule">
+    <!-- JS renders here -->
+  </main>
 </div>
 
 <div data-component="bottom-nav" data-active="schedule"></div>

@@ -187,7 +187,7 @@ ul, ol { list-style: none; }
 @media (min-width: 640px) {
   .main-content {
     margin-left: 0;
-    padding-bottom: calc(var(--nav-h) + 24px);
+    padding-bottom: calc(var(--nav-h));
   }
 }
 @media (min-width: 1024px) {

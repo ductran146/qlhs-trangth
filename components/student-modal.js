@@ -138,7 +138,7 @@ export function render(el, dataset) {
         <div class="form-group">
           <label class="form-label">Học phí / ca (VND)</label>
           <div class="sm-field-wrap">
-            <input class="form-input sm-fee-input" id="smFee" type="text" inputmode="numeric" placeholder="110.000" autocomplete="off">
+            <input class="form-input sm-fee-input" id="smFee" type="text" inputmode="numeric" placeholder="Nhập học phí" autocomplete="off">
             <button type="button" class="sm-field-clear" aria-label="Xóa" tabindex="-1" hidden></button>
           </div>
         </div>

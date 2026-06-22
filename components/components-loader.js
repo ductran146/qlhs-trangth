@@ -148,3 +148,50 @@ window.addEventListener('pageshow', (event) => {
     if (!el.querySelector('.topbar')) renderTopbarSkeleton(el);
   });
 });
+
+/* ── Search clear button — tự động bind cho mọi .student-search-wrap ───────
+   Gọi 1 lần sau khi trang render xong, dùng MutationObserver để catch
+   các wrap được thêm vào DOM sau (week-attendance, month-overview, notes) */
+function bindSearchClear(wrap) {
+  const input = wrap.querySelector('.student-search');
+  if (!input || wrap._clearBound) return;
+  wrap._clearBound = true;
+
+  // Tạo button nếu chưa có
+  let btn = wrap.querySelector('.student-search-clear');
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'student-search-clear';
+    btn.hidden = true;
+    btn.setAttribute('aria-label', 'Xóa tìm kiếm');
+    btn.innerHTML = '<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1 1l8 8M9 1L1 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+    wrap.appendChild(btn);
+  }
+
+  let isFocused = false;
+  const update = () => { btn.hidden = !(isFocused && input.value.length > 0); };
+
+  input.addEventListener('focus',  () => { isFocused = true;  update(); });
+  input.addEventListener('blur',   () => { setTimeout(() => { isFocused = false; update(); }, 150); });
+  input.addEventListener('input',  update);
+  btn.addEventListener('mousedown', e => e.preventDefault());
+  btn.addEventListener('click', () => {
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    update();
+    input.focus();
+  });
+}
+
+// Bind các wrap hiện tại + lắng nghe wrap mới thêm vào DOM
+function initSearchClears() {
+  document.querySelectorAll('.student-search-wrap').forEach(bindSearchClear);
+}
+
+const _searchObserver = new MutationObserver(() => {
+  document.querySelectorAll('.student-search-wrap').forEach(bindSearchClear);
+});
+_searchObserver.observe(document.body, { childList: true, subtree: true });
+
+document.addEventListener('DOMContentLoaded', initSearchClears);
