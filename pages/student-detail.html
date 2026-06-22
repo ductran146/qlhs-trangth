@@ -207,7 +207,6 @@ function summaryTemplate({ st, sessions, report, mode, label, weekReports = [] }
   const busySlots = busy.reduce((a, s) => a + plannedSlots(s), 0);
   const noStudySlots = absentSlots + busySlots;
   const makeupNeededSlots = remainingMakeupSlots(st.id, sessions);
-  const hasSource = mode === 'week' ? hasSessionNotes(sessions) : (weekReports.length || hasSessionNotes(sessions));
   const draft = report?.content || '';
 
   return `
@@ -221,9 +220,9 @@ function summaryTemplate({ st, sessions, report, mode, label, weekReports = [] }
       <div class="ai-summary-head">
         <div class="summary-note-title"><span class="emoji" aria-hidden="true">✨</span> Nhận xét ${mode === 'week' ? 'tuần' : 'tháng'} gửi phụ huynh</div>
       </div>
-      <textarea class="ai-summary-textarea" data-report-content="${mode}" rows="7" placeholder="${hasSource ? 'Nhập từ khóa gợi ý (tùy chọn) rồi bấm AI tạo nhận xét...' : 'Chưa có dữ liệu nhận xét để tổng hợp.'}">${escapeHTML(draft)}</textarea>
+      <textarea class="ai-summary-textarea" data-report-content="${mode}" rows="7" placeholder="Nhập từ khóa gợi ý rồi bấm AI tạo nhận xét...">${escapeHTML(draft)}</textarea>
       <div class="ai-summary-actions">
-        <button class="btn btn-outline" data-action="ai-${mode}" ${hasSource ? '' : 'disabled'}><span class="emoji" aria-hidden="true">🤖</span> AI tạo nhận xét</button>
+        <button class="btn btn-outline" data-action="ai-${mode}"><span class="emoji" aria-hidden="true">🤖</span> AI tạo nhận xét</button>
         <button class="btn btn-primary" data-action="save-${mode}-report">Lưu nhận xét</button>
       </div>
     </div>`;
@@ -359,8 +358,8 @@ async function aiGenerateReport({ mode, st, sessions, label, weekReports, textar
   const name        = st?.name || 'bé';
   const isTuan      = mode === 'week';
 
-  if (!noteTexts && !userKW && !totalSlots) {
-    alert('Chưa có dữ liệu. Vui lòng thêm nhận xét từng buổi hoặc nhập từ khóa.');
+  if (!noteTexts && !userKW) {
+    alert('Vui lòng nhập ít nhất một từ khóa hoặc thêm nhận xét từng buổi.');
     return;
   }
 
