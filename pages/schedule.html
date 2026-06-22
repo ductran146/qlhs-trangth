@@ -16,13 +16,21 @@
 }
 
 /* ── Day picker ───────────────────────────────────────────────── */
+.sched-day-tabs-wrap {
+  position: sticky;
+  top: 56px;           /* topbar height */
+  z-index: 30;
+  background: var(--bg);
+  padding: 10px 16px 10px;
+  margin: 0 -16px 16px; /* stretch full width */
+  border-bottom: 1px solid var(--border);
+}
 .sched-day-tabs {
   display: flex;
   gap: 6px;
   overflow-x: auto;
   scrollbar-width: none;
   padding-bottom: 2px;
-  margin-bottom: 20px;
 }
 .sched-day-tabs::-webkit-scrollbar { display: none; }
 .sched-day-tab {
@@ -42,8 +50,7 @@
   transition: all .15s;
   min-width: 44px;
 }
-.sched-day-tab .day-name { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
-.sched-day-tab .day-num  { font-size: 16px; font-weight: 700; color: var(--ink); line-height: 1.1; }
+.sched-day-tab .day-name { font-size: 13px; font-weight: 600; color: var(--ink); }
 .sched-day-tab .day-dot  { width: 5px; height: 5px; border-radius: 50%; background: transparent; margin-top: 2px; }
 .sched-day-tab.has-class .day-dot { background: var(--violet); }
 .sched-day-tab.active {
@@ -51,8 +58,8 @@
   border-color: var(--violet);
   color: #fff;
 }
-.sched-day-tab.active .day-num { color: #fff; }
-.sched-day-tab.active .day-dot { background: rgba(255,255,255,.6); }
+.sched-day-tab.active .day-name { color: #fff; }
+.sched-day-tab.active .day-dot  { background: rgba(255,255,255,.6); }
 .sched-day-tab.is-today:not(.active) { border-color: var(--violet); }
 
 /* ── Timeline ─────────────────────────────────────────────────── */
@@ -304,7 +311,6 @@ function render() {
       <button class="sched-day-tab${isActive ? ' active' : ''}${hasClass ? ' has-class' : ''}${isToday ? ' is-today' : ''}"
               data-dow="${dow}">
         <span class="day-name">${DAY_SHORT[dow]}</span>
-        <span class="day-num">${dow}</span>
         <span class="day-dot"></span>
       </button>`;
   }).join('');
@@ -340,7 +346,7 @@ function render() {
       </div>`;
 
   page.innerHTML = `
-    <div class="sched-day-tabs">${tabsHTML}</div>
+    <div class="sched-day-tabs-wrap"><div class="sched-day-tabs">${tabsHTML}</div></div>
     <h2 style="font-size:16px;font-weight:700;margin:0 0 12px;color:var(--ink)">
       ${DAY_FULL[selectedDow]}
     </h2>
