@@ -100,7 +100,7 @@
   background: var(--surface);
   border-top: 1px solid var(--border);
   box-shadow: var(--sh-bottom-menu);
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: grid; grid-template-columns: repeat(5, 1fr);
   z-index: 50;
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
@@ -817,6 +817,7 @@
 }
 .session-note-head {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
   padding: 12px;
@@ -825,7 +826,7 @@
 .session-note-head strong {
   display: block;
   color: var(--ink);
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.3;
 }
 .session-note-head span:not(.status-pill) {

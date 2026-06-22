@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { key: 'notes',    href: 'notes.html',    icon: '📓', label: 'Nhật ký tuần', group: 'Theo dõi' },
   { key: 'students', href: 'students.html', icon: '👦', label: 'Học sinh',      group: 'Theo dõi' },
   { key: 'income',   href: 'income.html',   icon: '💰', label: 'Thu nhập',      group: 'Tổng hợp' },
+  { key: 'schedule', href: 'schedule.html', icon: '🗓️', label: 'Thời khóa biểu', group: 'Tổng hợp' },
 ];
 
 export function render(el, dataset) {

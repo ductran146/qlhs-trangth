@@ -42,6 +42,19 @@ const params = new URLSearchParams(location.search);
 let studentId = params.get('id');
 let weekOffset = 0;
 let monthOffset = 0;
+function showToast(msg, duration = 2000) {
+  let toast = document.getElementById('qlhs-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'qlhs-toast';
+    toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:999px;font-size:13px;font-weight:500;z-index:9999;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap;';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.style.opacity = '1';
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, duration);
+}
 
 function fmtDatePlain(value) {
   if (!value) return '';
@@ -306,12 +319,21 @@ function bindInlineNoteEditors() {
       const textarea  = item?.querySelector('.session-note-textarea');
       if (!sessionId || !textarea) return;
 
-      const origDisabled = btn.disabled;
+      const noteText = textarea.value.trim();
+      const existing = Store.get('sessions').find(s => s.id === sessionId);
+      if (!existing) return;
+
       btn.disabled = true;
       btn.textContent = 'Đang lưu...';
 
-      await Store.upsertSession({ id: sessionId, note: textarea.value.trim() });
-      // Store.subscribe('sessions') trigger render() → UI tự reset
+      // Ghi Firestore + cache cục bộ, KHÔNG emit → render() không rebuild DOM
+      Store._writeNoteOnly(sessionId, noteText);
+
+      // Cập nhật in-place — card giữ nguyên trạng thái mở
+      textarea.dataset.original = noteText;
+      btn.disabled = false;
+      btn.textContent = 'Lưu';
+      showToast('Đã lưu nhận xét ✓');
     });
   });
 

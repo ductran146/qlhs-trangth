@@ -9,6 +9,7 @@ const TABS = [
   { key: 'notes',    href: 'notes.html',    icon: '📓', label: 'Nhật ký'   },
   { key: 'students', href: 'students.html', icon: '👦', label: 'Học sinh'  },
   { key: 'income',   href: 'income.html',   icon: '💰', label: 'Thu nhập'  },
+  { key: 'schedule', href: 'schedule.html', icon: '🗓️', label: 'Thời khóa' },
 ];
 
 export function render(el, dataset) {

@@ -391,6 +391,27 @@ const Store = {
     this.reconcileDebts();
   },
 
+  // Ghi note vào Firestore + cache cục bộ mà KHÔNG emit sự kiện
+  // Dùng cho inline note editor để tránh render() rebuild DOM
+  _writeNoteOnly(sessionId, noteText) {
+    const list = [...this.get('sessions')];
+    const idx  = list.findIndex(s => s.id === sessionId);
+    if (idx === -1) return;
+    // Dùng noteText (field chuẩn), xóa các field note cũ để nhất quán với session-card.js
+    const next = { ...list[idx], noteText };
+    delete next.note;
+    delete next.noteContent;
+    delete next.noteSkill;
+    delete next.noteBehavior;
+    delete next.noteProgress;
+    delete next.noteParent;
+    list[idx] = next;
+    // Cập nhật cache trực tiếp — không qua _setCache nên không emit, không trigger render()
+    _cache['sessions'] = list;
+    try { localStorage.setItem(LS_PREFIX + 'sessions', JSON.stringify(list)); } catch (_) {}
+    _writeDoc('sessions', next);
+  },
+
   syncDebts(sess) {
     let debts = [...this.get('debts')];
     const planned   = Number(sess.plannedSlots ?? sess.duration ?? 0);
