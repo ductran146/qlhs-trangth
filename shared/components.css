@@ -381,7 +381,7 @@
 /* ── WEEK ATTENDANCE GRID ───────────────── */
 .week-attendance {
   background: var(--surface);
-  padding: 0 16px 16px 16px;
+  padding: 16px;
   margin-bottom: 18px;
 }
 .week-attendance-head {
@@ -2520,6 +2520,59 @@
   color: var(--violet-d);
 }
 
+/* ── Inline note editor ──────────────────────────────────────────────────── */
+.session-note-actions {
+  padding: 0 var(--space-3) var(--space-3);
+}
+
+.session-note-edit-btn {
+  border: none;
+  background: none;
+  color: var(--violet);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.session-note-editor {
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.session-note-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  font-family: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  resize: vertical;
+  outline: none;
+}
+
+.session-note-textarea:focus {
+  border-color: var(--violet);
+}
+
+.session-note-editor-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.btn-sm {
+  min-height: 32px;
+  padding: 0 14px;
+  font-size: 12px;
+}
+
 @media (max-width: 767px) {
   .session-note-plain {
     padding: 10px var(--space-3);
@@ -3311,7 +3364,7 @@ input[type="search"]::-webkit-search-decoration {
     top: 64px !important;
     z-index: 39 !important;
     margin: 0 -16px 16px !important;
-    padding: 16px 16px 12px !important;
+    padding: 0px 16px 12px !important;
     background: var(--surface, #FFFFFF) !important;
     border-bottom: 1px solid var(--border, #DFE3E6) !important;
     box-shadow: 0 8px 20px rgba(16, 16, 19, .06) !important;
