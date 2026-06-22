@@ -196,6 +196,7 @@ function bindEvents(ctx) {
   });
 
   bindSessionNoteToggles();
+  bindInlineNoteEditors();
 }
 
 function summaryTemplate({ st, sessions, report, mode, label, weekReports = [] }) {
@@ -247,21 +248,30 @@ function sessionListTemplate(sessions) {
         const hideNote = shouldHideSessionNote(status);
         const isOpen = !hideNote && index === firstExpandableIndex;
         const noteHref = `session-note.html?studentId=${encodeURIComponent(s.studentId || studentId)}&sessionId=${encodeURIComponent(s.id)}`;
-        const noteBody = hideNote ? '' : (note ? `
+        const noteBody = hideNote ? '' : `
           <div class="session-note-content" ${isOpen ? '' : 'hidden'}>
+            ${note ? `
             <div class="session-note-plain">
               <span>${escapeHTML(note)}</span>
             </div>
-          </div>` : `
-          <div class="session-note-content" ${isOpen ? '' : 'hidden'}>
+            <div class="session-note-actions">
+              <button class="session-note-edit-btn" type="button" data-action="note-edit" data-session-id="${escapeHTML(s.id)}">Sửa nhận xét</button>
+            </div>` : `
             <div class="session-note-plain is-empty">
               <div class="session-note-empty-state">
                 <div class="session-note-empty-icon"><span class="emoji" aria-hidden="true">💬</span></div>
                 <div class="session-note-empty-text">Chưa có nhận xét cho buổi học này.</div>
-                <a class="session-note-add-btn" href="${noteHref}">Thêm nhận xét</a>
+                <button class="session-note-add-btn" type="button" data-action="note-edit" data-session-id="${escapeHTML(s.id)}">Thêm nhận xét</button>
+              </div>
+            </div>`}
+            <div class="session-note-editor" hidden>
+              <textarea class="session-note-textarea" rows="3" placeholder="Nhận xét buổi học...">${escapeHTML(note)}</textarea>
+              <div class="session-note-editor-actions">
+                <button class="btn btn-sm btn-outline" type="button" data-action="note-cancel" data-session-id="${escapeHTML(s.id)}">Hủy</button>
+                <button class="btn btn-sm btn-primary" type="button" data-action="note-save" data-session-id="${escapeHTML(s.id)}">Lưu</button>
               </div>
             </div>
-          </div>`);
+          </div>`;
 
         return `
         <article class="session-note-item${hideNote ? ' no-note' : ''}${isOpen ? ' is-open' : ''}" data-session-note-item="${escapeHTML(s.id || '')}">
@@ -282,6 +292,49 @@ function sessionListTemplate(sessions) {
         </article>`;
       }).join('')}
     </div>`;
+}
+
+function bindInlineNoteEditors() {
+  page.querySelectorAll('[data-action="note-edit"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const content = btn.closest('.session-note-content');
+      if (!content) return;
+      content.querySelector('.session-note-plain')?.setAttribute('hidden', '');
+      content.querySelector('.session-note-actions')?.setAttribute('hidden', '');
+      const editor = content.querySelector('.session-note-editor');
+      if (editor) {
+        editor.removeAttribute('hidden');
+        editor.querySelector('textarea')?.focus();
+      }
+    });
+  });
+
+  page.querySelectorAll('[data-action="note-cancel"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const content = btn.closest('.session-note-content');
+      if (!content) return;
+      content.querySelector('.session-note-editor')?.setAttribute('hidden', '');
+      content.querySelector('.session-note-plain')?.removeAttribute('hidden');
+      content.querySelector('.session-note-actions')?.removeAttribute('hidden');
+    });
+  });
+
+  page.querySelectorAll('[data-action="note-save"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const sessionId = btn.dataset.sessionId;
+      const content   = btn.closest('.session-note-content');
+      if (!sessionId || !content) return;
+
+      const textarea = content.querySelector('.session-note-textarea');
+      const text     = textarea?.value.trim() ?? '';
+
+      btn.disabled = true;
+      btn.textContent = 'Đang lưu...';
+
+      await Store.upsertSession({ id: sessionId, note: text });
+      // Store.subscribe('sessions') sẽ trigger render() tự động
+    });
+  });
 }
 
 function shouldHideSessionNote(status) {
