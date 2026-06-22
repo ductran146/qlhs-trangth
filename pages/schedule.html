@@ -128,7 +128,7 @@
 /* Trống */
 .sched-card.free {
   background: color-mix(in srgb, var(--green) 10%, transparent);
-  border: 1.5px dashed var(--green);
+  border: 0.5px dashed var(--green);
 }
 .sched-card.free .sched-card-label {
   font-size: 12px;
@@ -145,17 +145,29 @@
 /* Có học sinh */
 .sched-card.busy {
   background: var(--surface);
-  border: 1.5px solid var(--border);
+  border: 0.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+}
+.sched-card.busy .sched-student-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
 }
 .sched-card.busy .sched-card-label {
   font-size: 13px;
   font-weight: 600;
   color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .sched-card.busy .sched-card-sub {
   font-size: 11px;
   color: var(--ink-3);
-  margin-top: 2px;
 }
 
 /* Khoảng trống ngắn (< 30p) */
@@ -274,7 +286,8 @@ function buildDaySlots(dow) {
     .sort((a, b) => a.start - b.start);
 
   const result = [];
-  let cursor = WORK_START * 60;
+  // cursor bắt đầu từ ca đầu tiên — không hiện slot trống trước ca đầu
+  let cursor = classes.length > 0 ? classes[0].start : WORK_START * 60;
 
   for (const cls of classes) {
     const gap = cls.start - cursor;
@@ -372,11 +385,11 @@ function slotHTML(s) {
         <div class="sched-time">${minToTime(s.start)}</div>
         <div class="sched-line-col"></div>
         <div class="sched-card busy">
-          <div class="sched-card-label">
-            <span class="sched-avatar nav-emoji" style="background:${avatarColor(st.name)}">${initials(st.name)}</span>
-            ${escHTML(displayName(st))}
+          <span class="sched-avatar nav-emoji" style="background:${avatarColor(st.name)};flex-shrink:0">${initials(st.name)}</span>
+          <div class="sched-student-info">
+            <div class="sched-card-label">${escHTML(displayName(st))}</div>
+            <div class="sched-card-sub">${minToTime(s.start)} – ${minToTime(s.end)} · ${durLabel}</div>
           </div>
-          <div class="sched-card-sub">${minToTime(s.start)} – ${minToTime(s.end)} · ${durLabel}</div>
         </div>
       </div>`;
   }
