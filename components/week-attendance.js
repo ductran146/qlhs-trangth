@@ -30,6 +30,8 @@ const STATUS_META = {
 };
 
 let weekOffset = 0;
+let _search = '';
+let _sort   = 'time-asc'; // time-asc | name-asc
 const collapsedStudentIds = new Set();
 
 export function render(el) {
@@ -43,20 +45,30 @@ export function render(el) {
   }
 }
 
+function getFilteredStudents() {
+  let students = Store.get('students').filter(st => st.status !== 'inactive' && st.status !== 'stopped');
+  if (_search) {
+    const q = _search.toLowerCase();
+    students = students.filter(st =>
+      st.name?.toLowerCase().includes(q) || st.nickname?.toLowerCase().includes(q)
+    );
+  }
+  return _sort === 'name-asc'
+    ? [...students].sort((a, b) => a.name.localeCompare(b.name, 'vi'))
+    : [...students].sort((a, b) => (a.schedTime || '00:00').localeCompare(b.schedTime || '00:00'));
+}
+
 function draw(el) {
-  const week = getWeekRange(weekOffset);
+  // Lần đầu hoặc khi week thay đổi: render toàn bộ
+  const week  = getWeekRange(weekOffset);
   const dates = getWeekDates(week.start);
-  const students = Store.get('students').filter(st => st.status !== 'inactive' && st.status !== 'stopped');
+  const allStudents = Store.get('students').filter(st => st.status !== 'inactive' && st.status !== 'stopped');
   const sessions = Store.get('sessions');
   const allDebts = typeof Store.reconcileDebts === 'function' ? Store.reconcileDebts() : Store.get('debts');
   const debts = allDebts.filter(d => !d.done);
-
-  const cells = buildCells(students, dates, sessions);
-  const scheduledCells = cells.filter(c => c.scheduled);
-  const pendingCount = scheduledCells.filter(c => !c.session?.status && !isFutureDate(c.date.str)).length;
-  const taughtCount = cells.filter(c => isAttended(c.session)).length;
-  const actualSlots = cells.reduce((sum, c) => sum + getActualSlots(c.session), 0);
-  const activeStudentCount = students.length;
+  const allCells = buildCells(allStudents, dates, sessions);
+  const pendingCount = allCells.filter(c => c.scheduled && !c.session?.status && !isFutureDate(c.date.str)).length;
+  const activeStudentCount = allStudents.length;
 
   el.innerHTML = `
     <section class="week-attendance" aria-label="Chấm công tuần">
@@ -67,12 +79,9 @@ function draw(el) {
           </div>
           <button class="btn-sm" data-action="add-manual">+ Thêm buổi</button>
         </div>
-
         <div class="week-attendance-toolbar">
           <button class="icon-btn" data-action="prev-week" aria-label="Tuần trước"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M15 6C15 6 9.00001 10.4189 9 12C8.99999 13.5812 15 18 15 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-          <div class="week-attendance-summary">
-            <strong>Tuần ${week.label}</strong>
-          </div>
+          <div class="week-attendance-summary"><strong>Tuần ${week.label}</strong></div>
           <button class="icon-btn" data-action="next-week" aria-label="Tuần sau"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9.00005 6C9.00005 6 15 10.4189 15 12C15 13.5812 9 18 9 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         </div>
         <div class="week-attendance-meta">
@@ -82,14 +91,36 @@ function draw(el) {
           <span class="week-attendance-meta-dot" aria-hidden="true"></span>
           <span>${formatSlots(totalDebtSlots(debts))} ca còn nợ</span>
         </div>
+        <div class="student-toolbar" style="margin:10px 0 0">
+          <div class="student-search-wrap">
+            <span class="student-search-icon" aria-hidden="true">⌕</span>
+            <input class="student-search" id="waSearch" type="search" placeholder="Tìm học sinh" value="${escapeHTML(_search)}">
+          </div>
+          <select class="student-sort" id="waSort">
+            <option value="time-asc" ${_sort === 'time-asc' ? 'selected' : ''}>Giờ học</option>
+            <option value="name-asc" ${_sort === 'name-asc' ? 'selected' : ''}>Tên A → Z</option>
+          </select>
+        </div>
       </div>
-
-      ${students.length ? tableTemplate(students, dates, sessions) : emptyTemplate()}
-      ${students.length ? mobileTemplate(students, dates, sessions) : ''}
+      <div class="wa-list-slot"></div>
       <div class="attendance-modal-slot" data-attendance-modal></div>
     </section>`;
 
   bindEvents(el, dates);
+  drawList(el);  // render list lần đầu
+}
+
+function drawList(el) {
+  const week    = getWeekRange(weekOffset);
+  const dates   = getWeekDates(week.start);
+  const students = getFilteredStudents();
+  const sessions = Store.get('sessions');
+  const slot = el.querySelector('.wa-list-slot');
+  if (!slot) return;
+  slot.innerHTML = students.length
+    ? tableTemplate(students, dates, sessions) + mobileTemplate(students, dates, sessions)
+    : emptyTemplate();
+  bindListEvents(el, dates);
 }
 
 function tableTemplate(students, dates, sessions) {
@@ -251,6 +282,23 @@ function buildCell(st, d, sessions) {
   return { student: st, date: d, session, scheduled, preStart };
 }
 
+function bindListEvents(el, dates) {
+  // Bind events cho table/mobile list — gọi lại sau mỗi drawList()
+  el.querySelectorAll('[data-attendance-cell]').forEach(cell => {
+    cell.addEventListener('click', () => openAttendanceModal(el, cell.dataset));
+  });
+  el.querySelectorAll('[data-session-toggle]').forEach(button => {
+    button.addEventListener('click', () => {
+      const item = button.closest('[data-session-note-item]');
+      const body = item?.querySelector('.session-note-content');
+      if (!item || !body) return;
+      const isOpen = item.classList.toggle('is-open');
+      body.hidden = !isOpen;
+      button.setAttribute('aria-expanded', String(isOpen));
+    });
+  });
+}
+
 function bindEvents(el, dates) {
   el.querySelector('[data-action="prev-week"]')?.addEventListener('click', () => {
     weekOffset -= 1;
@@ -260,6 +308,15 @@ function bindEvents(el, dates) {
   el.querySelector('[data-action="next-week"]')?.addEventListener('click', () => {
     weekOffset += 1;
     draw(el);
+  });
+
+  el.querySelector('#waSearch')?.addEventListener('input', e => {
+    _search = e.target.value;
+    drawList(el);
+  });
+  el.querySelector('#waSort')?.addEventListener('change', e => {
+    _sort = e.target.value;
+    drawList(el);
   });
 
   el.querySelector('[data-action="add-manual"]')?.addEventListener('click', () => {

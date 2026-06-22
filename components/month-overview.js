@@ -13,6 +13,8 @@ const STATUS_META = {
 };
 
 let lastRows = [];
+let _moSearch = '';
+let _moSort   = 'priority'; // priority | name-asc | time-asc
 
 export function render(el) {
   if (!el._monthOverviewSubscribed) {
@@ -22,6 +24,37 @@ export function render(el) {
     Store.subscribe('debts', () => _draw(el));
   }
   _draw(el);
+}
+
+function _getFilteredRows() {
+  let rows = [...lastRows];
+  if (_moSearch) {
+    const q = _moSearch.toLowerCase();
+    rows = rows.filter(r =>
+      r.student.name?.toLowerCase().includes(q) ||
+      r.student.nickname?.toLowerCase().includes(q)
+    );
+  }
+  if (_moSort === 'name-asc') {
+    rows.sort((a, b) => a.student.name.localeCompare(b.student.name, 'vi'));
+  } else if (_moSort === 'time-asc') {
+    rows.sort((a, b) => (a.student.schedTime || '00:00').localeCompare(b.student.schedTime || '00:00'));
+  } else {
+    // priority (mặc định)
+    rows.sort((a, b) => {
+      const score = r => (r.debtSlots * 100) + (r.pendingSlots * 10) - r.taughtSlots;
+      return score(b) - score(a);
+    });
+  }
+  return rows;
+}
+
+function _drawStudentList(el) {
+  const slot = el.querySelector('.mo-student-list-slot');
+  if (!slot) return;
+  const rows = _getFilteredRows();
+  slot.innerHTML = rows.length ? rows.map(rowTemplate).join('') : `
+    <div style="padding:24px;text-align:center;color:var(--ink-3);font-size:14px">Không tìm thấy học sinh</div>`;
 }
 
 function _draw(el) {
@@ -93,13 +126,25 @@ function _draw(el) {
       </div>
 
       <div class="month-student-panel">
+        <div class="student-toolbar" style="margin-bottom:12px">
+          <div class="student-search-wrap">
+            <span class="student-search-icon" aria-hidden="true">⌕</span>
+            <input class="student-search" id="moSearch" type="search" placeholder="Tìm học sinh" value="${escapeHTML(_moSearch)}">
+          </div>
+          <select class="student-sort" id="moSort">
+            <option value="priority" ${_moSort === 'priority' ? 'selected' : ''}>Cần xử lý</option>
+            <option value="name-asc" ${_moSort === 'name-asc' ? 'selected' : ''}>Tên A → Z</option>
+            <option value="time-asc" ${_moSort === 'time-asc' ? 'selected' : ''}>Giờ học</option>
+          </select>
+        </div>
         <div class="month-student-title">
           <span>Tình trạng từng học sinh</span>
           <small>${formatNumber(absentBusySlots)} ca nghỉ/bận</small>
         </div>
-        ${priorityRows.length ? priorityRows.map(rowTemplate).join('') : `
+        <div class="mo-student-list-slot">${priorityRows.length ? priorityRows.map(rowTemplate).join('') : `
           <div class="text-muted fs-13" style="padding:10px 0;text-align:center">Chưa có học sinh</div>
         `}
+        </div>
       </div>
     </section>
     <div class="pending-dialog-backdrop" hidden>
@@ -155,6 +200,15 @@ function _draw(el) {
     </div>`;
 
   bindPendingDialog(el);
+
+  el.querySelector('#moSearch')?.addEventListener('input', e => {
+    _moSearch = e.target.value;
+    _drawStudentList(el);
+  });
+  el.querySelector('#moSort')?.addEventListener('change', e => {
+    _moSort = e.target.value;
+    _drawStudentList(el);
+  });
 }
 
 function buildStudentRow(st, sessions, debts, start, today, year, month) {

@@ -28,6 +28,8 @@ import { Store, avatarColor, initials, fmtMoney, getWeekRange } from '../shared/
 
 const page = document.getElementById('pageNotes');
 let weekOffset = 0;
+let _search = '';
+let _sort   = 'time-asc';
 const expandedGroups = new Set();
 
 function groupKey(studentId) {
@@ -42,18 +44,37 @@ function render() {
     .filter(s => s.date >= week.start && s.date <= week.end)
     .sort((a,b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
 
-  let html = `
-    <div class="page-header">
-      <div>
-        <div class="page-title">Nhật ký can thiệp</div>
-        <div class="page-sub">${sessions.length} buổi học trong tuần</div>
+  // Render header 1 lần, tránh mất focus khi search
+  if (!page.querySelector('.notes-header')) {
+    page.innerHTML = `
+      <div class="notes-header">
+        <div class="student-toolbar" style="margin-bottom:12px">
+          <div class="student-search-wrap">
+            <span class="student-search-icon" aria-hidden="true">&#x2315;</span>
+            <input class="student-search" id="notesSearch" type="search" placeholder="T&#236;m h&#7885;c sinh">
+          </div>
+          <select class="student-sort" id="notesSort">
+            <option value="time-asc">Gi&#7901; h&#7885;c</option>
+            <option value="name-asc">T&#234;n A &#8594; Z</option>
+          </select>
+        </div>
+        <div class="week-nav">
+          <button class="icon-btn" id="btnPrevWeek" aria-label="Tu&#7847;n tr&#432;&#7899;c"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M15 6C15 6 9.00001 10.4189 9 12C8.99999 13.5812 15 18 15 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <span class="week-lbl"></span>
+          <button class="icon-btn" id="btnNextWeek" aria-label="Tu&#7847;n sau"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9.00005 6C9.00005 6 15 10.4189 15 12C15 13.5812 9 18 9 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
       </div>
-    </div>
-    <div class="week-nav">
-      <button class="icon-btn" id="btnPrevWeek" aria-label="Tuần trước"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M15 6C15 6 9.00001 10.4189 9 12C8.99999 13.5812 15 18 15 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-      <span class="week-lbl">Tuần ${week.label}</span>
-      <button class="icon-btn" id="btnNextWeek" aria-label="Tuần sau"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9.00005 6C9.00005 6 15 10.4189 15 12C15 13.5812 9 18 9 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-    </div>`;
+      <div class="notes-list-slot"></div>`;
+    bindNav();
+    bindSearchSort();
+  }
+  // Cập nhật week label
+  const wlbl = page.querySelector('.week-lbl');
+  if (wlbl) wlbl.textContent = `Tu\u1ea7n ${week.label}`;
+  const sortEl = page.querySelector('#notesSort');
+  if (sortEl) sortEl.value = _sort;
+
+  let html = ``;
 
   if (!sessions.length) {
     html += `
@@ -62,22 +83,34 @@ function render() {
         <div class="title">Chưa có buổi nào trong tuần này</div>
         <div class="sub">Vào Điểm danh để ghi nhận các buổi học</div>
       </div>`;
-    page.innerHTML = html;
-    bindNav();
+  page.querySelector('.notes-list-slot').innerHTML = html;
     return;
   }
 
-  const byStudent = {};
+  // Build byStudent rồi filter/sort
+  const byStudentMap = {};
   for (const sess of sessions) {
     const st = students.find(s => s.id === sess.studentId);
     if (!st) continue;
-    if (!byStudent[st.id]) byStudent[st.id] = { student: st, sessions: [] };
-    byStudent[st.id].sessions.push(sess);
+    if (!byStudentMap[st.id]) byStudentMap[st.id] = { student: st, sessions: [] };
+    byStudentMap[st.id].sessions.push(sess);
   }
+  const q = _search.toLowerCase();
+  let byStudentArr = Object.values(byStudentMap).filter(({ student: st }) =>
+    !q || st.name?.toLowerCase().includes(q) || st.nickname?.toLowerCase().includes(q)
+  );
+  if (_sort === 'name-asc') {
+    byStudentArr.sort((a, b) => a.student.name.localeCompare(b.student.name, 'vi'));
+  } else {
+    byStudentArr.sort((a, b) =>
+      (a.student.schedTime || '00:00').localeCompare(b.student.schedTime || '00:00')
+    );
+  }
+  const byStudent = byStudentArr;
 
   html += `<div class="notes-student-groups">`;
 
-  Object.values(byStudent).forEach(({ student: st, sessions: ss }, index) => {
+  byStudent.forEach(({ student: st, sessions: ss }, index) => {
     const key = groupKey(st.id);
     const isOpen = expandedGroups.size ? expandedGroups.has(key) : index === 0;
     if (!expandedGroups.size && index === 0) expandedGroups.add(key);
@@ -118,8 +151,7 @@ function render() {
 
   html += `</div>`;
 
-  page.innerHTML = html;
-  bindNav();
+  page.querySelector('.notes-list-slot').innerHTML = html;
   bindGroups();
   loadSessionCards();
 }
@@ -198,6 +230,17 @@ window.exportWeek = () => {
   URL.revokeObjectURL(url);
   alert(`Đã tải file bao-cao-${week.start}.json\nChạy: node export-word.js bao-cao-${week.start}.json`);
 };
+
+function bindSearchSort() {
+  document.getElementById('notesSearch')?.addEventListener('input', e => {
+    _search = e.target.value;
+    render();
+  });
+  document.getElementById('notesSort')?.addEventListener('change', e => {
+    _sort = e.target.value;
+    render();
+  });
+}
 
 Store.subscribe('students', render);
 Store.subscribe('sessions', render);

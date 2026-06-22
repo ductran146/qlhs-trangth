@@ -182,7 +182,7 @@ ul, ol { list-style: none; }
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  padding-bottom: calc(var(--nav-h) + 8px);
+  padding-bottom: calc(var(--nav-h));
 }
 @media (min-width: 640px) {
   .main-content {
@@ -287,7 +287,7 @@ ul, ol { list-style: none; }
 .form-label  { display: block; font-size: 12px; font-weight: 600; color: var(--ink-2); margin-bottom: 5px; }
 .form-input  {
   width: 100%; padding: 10px 12px;
-  border: 1.5px solid var(--border-2); border-radius: var(--r-sm);
+  border: 1px solid var(--border-2); border-radius: var(--r-sm);
   background: var(--surface-2); color: var(--ink); transition: border-color .15s, box-shadow .15s, background .15s;
 }
 .form-input:focus  { outline: none; border-color: var(--violet); background: var(--surface); box-shadow: var(--focus-ring); }
