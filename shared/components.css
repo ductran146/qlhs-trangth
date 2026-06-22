@@ -2525,40 +2525,49 @@
   display: block;
   width: 100%;
   box-sizing: border-box;
-  border: none;
-  border-top: 1px solid var(--border);
-  border-radius: 0;
-  padding: 12px var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin: 0 var(--space-3);
+  width: calc(100% - var(--space-3) * 2);
+  padding: 10px 12px;
   font-size: 13px;
   line-height: 1.5;
   font-family: inherit;
   color: var(--ink);
-  background: var(--bg);
+  background: var(--surface);
   resize: none;
   outline: none;
-  min-height: 64px;
+  overflow: hidden;
+  field-sizing: content;
+  min-height: 40px;
 }
 
 .session-note-textarea:focus {
-  background: var(--surface);
-  border-top-color: var(--violet);
+  border-color: var(--violet);
 }
 
-/* ── Toggle arrow: xoay 180° khi is-open ────────────────────────────────── */
-.session-note-toggle svg {
-  transition: transform 0.2s ease;
-  transform: rotate(90deg);
-}
+/* ── Toggle arrow: down mặc định, up khi is-open ────────────────────────── */
 
-.session-note-item.is-open .session-note-toggle svg {
-  transform: rotate(-90deg);
-}
 
 /* ── Toggle disabled (nghỉ / bận) ───────────────────────────────────────── */
 .session-note-toggle.is-disabled {
   opacity: 0.3;
   cursor: default;
   pointer-events: none;
+}
+
+/* ── Save / Cancel actions ───────────────────────────────────────────────── */
+.session-note-editor-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 8px var(--space-3) 12px;
+}
+
+.btn-sm {
+  min-height: 32px;
+  padding: 0 14px;
+  font-size: 12px;
 }
 
 @media (max-width: 767px) {
@@ -2622,12 +2631,8 @@
 
 .session-note-toggle svg {
   display: block;
-  transform: rotate(180deg);
+  transform: rotate(90deg);    /* arrow-right → arrow down (mặc định đóng) */
   transition: transform .16s ease;
-}
-
-.session-note-item.is-collapsed .session-note-toggle svg {
-  transform: rotate(0deg);
 }
 
 .session-note-item.is-collapsed .session-note-content {
@@ -2788,7 +2793,7 @@
   color: var(--violet-d);
 }
 .session-note-item.is-open .session-note-toggle svg {
-  transform: rotate(180deg);
+  transform: rotate(-90deg);   /* arrow-right → arrow up khi mở */
 }
 .session-note-content[hidden] {
   display: none !important;
