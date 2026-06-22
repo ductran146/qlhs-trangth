@@ -2645,6 +2645,7 @@
 
 .session-note-content {
   border-top: 0;
+  padding-top: 12px;
 }
 
 .session-note-plain {
@@ -2847,7 +2848,7 @@
 }
 @media (max-width: 767px) {
   .session-note-head {
-    align-items: flex-start;
+    align-items: center;
   }
   .session-note-status-wrap {
     gap: 6px;
