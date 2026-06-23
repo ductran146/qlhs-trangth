@@ -35,24 +35,20 @@ function _draw(el) {
   }, 0);
   const debtSlots   = debts.reduce((sum, d) => sum + Number(d.slots || 0), 0);
 
-  // Ca chưa chấm: đếm ô lịch có học trong tháng này (đến hôm nay) mà chưa có session record hoặc status pending
-  // Giống cách tính của week-attendance để nhất quán
-  const sessionMap = {};
-  sessions.forEach(s => { sessionMap[`${s.studentId}_${s.date}`] = s; });
-
+  // Ca chưa chấm: dùng đúng công thức của week-attendance
+  // c.scheduled && !c.session?.status && !isFutureDate(c.date.str)
+  const activeStudents = students.filter(s => s.status !== 'inactive' && s.status !== 'stopped');
   let pendingCount = 0;
-  const activeStudents = students.filter(s => s.status !== 'stopped');
-
-  // Duyệt từng ngày trong tháng đến hôm nay
-  const mStartDate = new Date(year, month, 1);
-  const todayDate  = new Date();
-  for (let d = new Date(mStartDate); d <= todayDate; d.setDate(d.getDate() + 1)) {
-    const dow     = d.getDay();
-    const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  for (let day = 1; day <= 31; day++) {
+    const d = new Date(year, month, day);
+    if (d.getMonth() !== month) break;          // qua tháng khác → dừng
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    if (dateStr > today) break;                  // chưa đến hôm nay → dừng
+    const dow = d.getDay();
     for (const st of activeStudents) {
-      if (!(st.schedDays || []).includes(dow)) continue;
-      if (st.startDate && dateStr < st.startDate) continue;
-      const sess = sessionMap[`${st.id}_${dateStr}`];
+      const scheduled = (st.schedDays || []).includes(dow);
+      if (!scheduled) continue;
+      const sess = sessions.find(s => s.studentId === st.id && s.date === dateStr);
       if (!sess || !sess.status || sess.status === 'pending') pendingCount++;
     }
   }
