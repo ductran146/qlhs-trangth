@@ -219,6 +219,19 @@ function _attachListeners({ onSnapshot }) {
   _unsubscribers = [];
 
   for (const key of COLLECTION_KEYS) {
+    // Timeout fallback: nếu sau 4s không có server snapshot, dùng cache
+    const cacheTimeouts = {};
+    cacheTimeouts[key] = setTimeout(() => {
+      if (!_serverSnapshotReceived[key]) {
+        const cached = _cache[key];
+        if (cached && cached.length > 0) {
+          _serverSnapshotReceived[key] = true; // unblock UI
+          _syncStatus.firestore = 'synced';
+          Store.emit('sync', Store.getSyncStatus());
+        }
+      }
+    }, 4000);
+
     const unsub = onSnapshot(
       _col(key),
       { includeMetadataChanges: true },
@@ -229,12 +242,16 @@ function _attachListeners({ onSnapshot }) {
 
         if (!fromCache) {
           // Server snapshot → source of truth
+          clearTimeout(cacheTimeouts[key]);
           _serverSnapshotReceived[key] = true;
           _syncStatus.lastRemoteAt = new Date().toISOString();
           _setCache(key, list, 'firestore-server');
-        } else if (!_serverSnapshotReceived[key]) {
-          // Cache snapshot → chỉ hiển thị nếu chưa có server data
+        } else {
+          // Cache snapshot → luôn hiển thị ngay (không chờ server)
           _setCache(key, list, 'firestore-cache');
+          if (!_serverSnapshotReceived[key]) {
+            _serverSnapshotReceived[key] = true;
+          }
         }
 
         _syncStatus.firestore = _allServerSnapshotsReceived() ? 'synced' : (fromCache ? 'cache' : 'syncing');
