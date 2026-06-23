@@ -1,7 +1,19 @@
 (() => {
   const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
   let deferredInstallPrompt = null;
+
+  function isStandaloneMode() {
+    return window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true;
+  }
+
+  function applyPwaClass() {
+    const isStandalone = isStandaloneMode();
+    document.documentElement.classList.toggle('is-pwa', isStandalone);
+    document.body?.classList.toggle('is-pwa', isStandalone);
+  }
+
+  applyPwaClass();
 
   function rootPath(fileName = '') {
     const inPages = location.pathname.includes('/pages/');
@@ -27,7 +39,7 @@
   }
 
   async function handleInstallClick() {
-    if (isStandalone) return;
+    if (isStandaloneMode()) return;
 
     if (deferredInstallPrompt) {
       deferredInstallPrompt.prompt();
@@ -51,11 +63,7 @@
     handleInstallClick();
   });
 
-  document.addEventListener('DOMContentLoaded', () => {
-    if (isStandalone) {
-      document.querySelectorAll('[data-pwa-install]').forEach((btn) => {
-        btn.style.display = 'none';
-      });
-    }
-  });
+  document.addEventListener('DOMContentLoaded', applyPwaClass);
+  window.addEventListener('pageshow', applyPwaClass);
+  document.addEventListener('visibilitychange', applyPwaClass);
 })();

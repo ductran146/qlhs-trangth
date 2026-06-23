@@ -3777,3 +3777,40 @@ input[type="search"]::-webkit-search-decoration {
   min-height: 44px;
   overflow: hidden;
 }
+
+/* ── PWA app mode refinements ───────────────────────────
+   In standalone app mode: hide the Apple install button and add
+   20px breathing room under the bottom menu. */
+@media (display-mode: standalone) {
+  [data-pwa-install],
+  .topbar-install-btn {
+    display: none !important;
+  }
+
+  .bottom-nav {
+    height: calc(var(--nav-h) + 20px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .main-content {
+    padding-bottom: calc(var(--nav-h) + 20px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
+html.is-pwa [data-pwa-install],
+html.is-pwa .topbar-install-btn,
+body.is-pwa [data-pwa-install],
+body.is-pwa .topbar-install-btn {
+  display: none !important;
+}
+
+html.is-pwa .bottom-nav,
+body.is-pwa .bottom-nav {
+  height: calc(var(--nav-h) + 20px + env(safe-area-inset-bottom, 0px)) !important;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+html.is-pwa .main-content,
+body.is-pwa .main-content {
+  padding-bottom: calc(var(--nav-h) + 20px + env(safe-area-inset-bottom, 0px)) !important;
+}
