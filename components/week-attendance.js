@@ -283,9 +283,16 @@ function buildCell(st, d, sessions) {
 }
 
 function bindListEvents(el, dates) {
-  // Bind events cho table/mobile list — gọi lại sau mỗi drawList()
-  el.querySelectorAll('[data-attendance-cell]').forEach(cell => {
-    cell.addEventListener('click', () => openAttendanceModal(el, cell.dataset));
+  // Bind events cho table/mobile list — gọi lại sau mỗi drawList().
+  // Các ô chấm công hiện đang render bằng button data-action="open-attendance".
+  // Trước đó code vẫn đi tìm selector cũ [data-attendance-cell], nên các nút
+  // "Chưa / Đủ / Thiếu..." trên desktop và mobile không mở được modal.
+  el.querySelectorAll('[data-action="open-attendance"]').forEach(btn => {
+    btn.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openAttendanceModal(el, btn.dataset.studentId, btn.dataset.date);
+    });
   });
 
   // Toggle mở rộng / thu gọn bảng chấm công từng học sinh (mobile)
@@ -370,9 +377,9 @@ function openAttendanceModal(root, studentId, date, overrideTime) {
         <div class="attendance-status-grid" data-status-group>
           ${statusChoice('taught', 'Đã học đủ', defaultStatus)}
           ${statusChoice('partial', 'Học thiếu', defaultStatus)}
+          ${statusChoice('makeup', 'Dạy bù', defaultStatus)}
           ${statusChoice('absent', 'Nghỉ', defaultStatus)}
           ${statusChoice('busy', 'Cô bận', defaultStatus)}
-          ${statusChoice('makeup', 'Dạy bù', defaultStatus)}
         </div>
       </div>
 
