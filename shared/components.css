@@ -696,9 +696,8 @@
 }
 .student-profile-main {
   display: flex;
-  gap: 12px;
   align-items: flex-start;
-  margin-bottom: 16px;
+  gap: 12px;
 }
 .avatar.lg {
   width: 56px;
@@ -937,10 +936,10 @@
 }
 .ai-summary-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: var(--space-4);
-  margin-bottom: var(--space-3);
+  gap: 8px;
+  margin-bottom: 10px;
 }
 .ai-summary-head .summary-note-title {
   display: flex;
@@ -1148,7 +1147,6 @@
 }
 
 @media (max-width: 767px) {
-  .ai-summary-head,
   .ai-summary-actions {
     flex-direction: column;
     align-items: stretch;
@@ -1246,11 +1244,15 @@
   width: 18px;
   height: 18px;
   display: block;
+  transform: rotate(90deg);        /* mặc định đóng: arrow-right → arrow-down ↓ */
+  transition: transform .18s ease;
 }
 .notes-student-group.is-open .notes-student-arrow {
-  transform: rotate(90deg);
   background: var(--violet-l);
   color: var(--violet-d);
+}
+.notes-student-group.is-open .notes-student-arrow svg {
+  transform: rotate(-90deg);       /* khi mở: arrow-right → arrow-up ↑ */
 }
 .notes-student-body {
   display: flex;
@@ -2280,6 +2282,7 @@
   .student-profile-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
+    margin-top: 20px;
   }
 
   .student-profile-grid div {
@@ -2558,7 +2561,6 @@
   resize: none;
   outline: none;
   overflow: hidden;
-  field-sizing: content;
   min-height: 40px;
 }
 
@@ -2768,7 +2770,10 @@
 
 /* ── STUDENT DETAIL: AI SUMMARY ACTIONS COMPACT ROW ───────────────── */
 .ai-summary-head {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   margin-bottom: var(--space-3, 12px);
 }
 .ai-summary-head p,
@@ -2907,7 +2912,9 @@
 }
 .student-profile-edit-btn {
   flex: 0 0 auto;
+  align-self: flex-start;
   white-space: nowrap;
+  width: fit-content;
 }
 
 @media (max-width: 767px) {
@@ -3439,14 +3446,14 @@ input[type="search"]::-webkit-search-decoration {
     align-items: center !important;
     justify-content: center !important;
     flex: 0 0 auto !important;
-    transition: transform .18s ease, background .18s ease !important;
+    transition: background .18s ease, color .18s ease !important;
   }
 
   #pageCheckin .week-mobile-student-arrow svg {
     width: 20px !important;
     height: 20px !important;
     display: block !important;
-    transform: rotate(90deg) !important; /* arrow-right → arrow-down (mặc định đóng) */
+    transform: rotate(-90deg) !important;  /* mặc định mở: arrow-up ↑ */
     transition: transform .18s ease !important;
   }
 
@@ -3456,7 +3463,16 @@ input[type="search"]::-webkit-search-decoration {
   }
 
   #pageCheckin .week-calendar-card.is-open .week-mobile-student-arrow svg {
-    transform: rotate(-90deg) !important; /* arrow-right → arrow-up khi mở */
+    transform: rotate(-90deg) !important;  /* mở: arrow-up ↑ */
+  }
+
+  #pageCheckin .week-calendar-card.is-collapsed .week-mobile-student-arrow {
+    background: var(--bg) !important;
+    color: var(--ink-2) !important;
+  }
+
+  #pageCheckin .week-calendar-card.is-collapsed .week-mobile-student-arrow svg {
+    transform: rotate(90deg) !important;   /* đóng: arrow-down ↓ */
   }
 
   #pageCheckin .week-calendar-card.is-collapsed .week-calendar-grid[hidden] {
@@ -3733,29 +3749,35 @@ input[type="search"]::-webkit-search-decoration {
 }
 
 /* ── Copy report button ──────────────────────────────────────────────────── */
-.ai-copy-wrap {
-  display: flex;
-  justify-content: flex-start;
-  padding: 0 0 4px;
-}
 .btn-copy-report {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   background: none;
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  padding: 6px 14px;
-  font-size: 13px;
+  border: none;
+  padding: 4px 0;
+  font-size: 12px;
   font-weight: 500;
   color: var(--ink-2);
   cursor: pointer;
-  transition: background .15s, color .15s;
+  transition: color .15s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
-.btn-copy-report:hover { background: var(--bg); color: var(--ink); }
+.btn-copy-report:hover:not(:disabled) { color: var(--ink); }
+.btn-copy-report:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
 
 /* ── Ẩn nút Xuất tuần/tháng trên mobile ─────────────────────────────────── */
 @media (max-width: 639px) {
   [data-action="export-week"],
   [data-action="export-month"] { display: none !important; }
+}
+
+.ai-summary-textarea {
+  resize: none;
+  min-height: 44px;
+  overflow: hidden;
 }

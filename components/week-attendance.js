@@ -32,7 +32,7 @@ const STATUS_META = {
 let weekOffset = 0;
 let _search = '';
 let _sort   = 'time-asc'; // time-asc | name-asc
-const collapsedStudentIds = new Set();
+const collapsedStudentIds = new Set(); // rỗng = tất cả mở mặc định
 
 export function render(el) {
   draw(el);
@@ -300,9 +300,28 @@ function bindListEvents(el, dates) {
     btn.addEventListener('click', () => {
       const studentId = btn.dataset.studentId;
       if (!studentId) return;
-      if (collapsedStudentIds.has(studentId)) collapsedStudentIds.delete(studentId);
-      else collapsedStudentIds.add(studentId);
-      drawList(el);
+
+      const card = btn.closest('.week-calendar-card');
+      const grid = card?.querySelector('.week-calendar-grid');
+      if (!card) return;
+
+      const isNowCollapsed = card.classList.contains('is-collapsed');
+
+      if (isNowCollapsed) {
+        // Mở ra
+        collapsedStudentIds.delete(studentId);
+        card.classList.remove('is-collapsed');
+        card.classList.add('is-open');
+        if (grid) grid.removeAttribute('hidden');
+        btn.setAttribute('aria-expanded', 'true');
+      } else {
+        // Thu lại
+        collapsedStudentIds.add(studentId);
+        card.classList.remove('is-open');
+        card.classList.add('is-collapsed');
+        if (grid) grid.setAttribute('hidden', '');
+        btn.setAttribute('aria-expanded', 'false');
+      }
     });
   });
 }

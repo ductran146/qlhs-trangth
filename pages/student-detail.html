@@ -100,19 +100,15 @@ function render() {
       <div class="student-profile-main">
         <div class="avatar lg" style="background:${avatarColor(st.name)}">${initials(st.name)}</div>
         <div class="student-profile-info">
-          <div class="student-profile-title-row">
-            <div class="student-profile-title-main">
-              <h1>${escapeHTML(st.name)}</h1>
-              <div class="student-profile-tags">
-                ${(st.difficulties || []).map(d => `<span class="tag">${escapeHTML(d)}</span>`).join('')}
-                ${st.dob ? `<span class="tag green">${age(st.dob)}</span>` : ''}
-                ${debts.length ? `<span class="tag red">Nợ ${sum(debts, 'slots')} ca</span>` : ''}
-              </div>
-            </div>
-            <button class="btn btn-outline student-profile-edit-btn" id="btnEditStudent">Sửa thông tin</button>
+          <h1>${escapeHTML(st.name)}</h1>
+          <div class="student-profile-tags">
+            ${(st.difficulties || []).map(d => `<span class="tag">${escapeHTML(d)}</span>`).join('')}
+            ${st.dob ? `<span class="tag green">${age(st.dob)}</span>` : ''}
+            ${debts.length ? `<span class="tag red">Nợ ${sum(debts, 'slots')} ca</span>` : ''}
           </div>
           ${st.goal ? `<p><span class="emoji" aria-hidden="true">🎯</span>${escapeHTML(st.goal)}</p>` : ''}
         </div>
+        <button class="btn btn-outline student-profile-edit-btn" id="btnEditStudent">Sửa thông tin</button>
       </div>
       <div class="student-profile-grid">
         <div><span>Ngày bắt đầu học</span><strong>${st.startDate ? fmtDatePlain(st.startDate) : 'Chưa nhập'}</strong></div>
@@ -128,15 +124,13 @@ function render() {
 
     <section class="detail-report-card">
       <div class="detail-section-head">
-        <div>
-          <div class="section-label">Nhận xét theo tuần</div>
-          <h2>Tuần ${week.label}</h2>
-        </div>
-        <div class="detail-actions">
-          <button class="icon-btn" data-action="prev-week" aria-label="Tuần trước"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M15 6C15 6 9.00001 10.4189 9 12C8.99999 13.5812 15 18 15 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-          <button class="icon-btn" data-action="next-week" aria-label="Tuần sau"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9.00005 6C9.00005 6 15 10.4189 15 12C15 13.5812 9 18 9 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-          <button class="btn btn-primary" data-action="export-week"><span class="emoji" aria-hidden="true">📄</span> Xuất tuần</button>
-        </div>
+        <div class="section-label">Nhận xét theo tuần</div>
+        <button class="btn btn-primary" data-action="export-week"><span class="emoji" aria-hidden="true">📄</span> Xuất tuần</button>
+      </div>
+      <div class="week-nav" style="margin-bottom:12px">
+        <button class="icon-btn" data-action="prev-week" aria-label="Tuần trước"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M15 6C15 6 9.00001 10.4189 9 12C8.99999 13.5812 15 18 15 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <span class="week-lbl">Tuần ${week.label}</span>
+        <button class="icon-btn" data-action="next-week" aria-label="Tuần sau"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9.00005 6C9.00005 6 15 10.4189 15 12C15 13.5812 9 18 9 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       </div>
       ${summaryTemplate({ st, sessions: weekSessions, report: weekReport, mode: 'week', label: `Tuần ${week.label}` })}
       ${sessionListTemplate(weekSessions)}
@@ -224,11 +218,13 @@ function bindEvents(ctx) {
     });
   });
 
-  // Hiện copy khi textarea có nội dung
+  // Auto-resize + hiện copy khi textarea có nội dung
   page.querySelectorAll('.ai-summary-textarea').forEach(ta => {
+    autoResizeTextarea(ta);
     ta.addEventListener('input', () => {
-      const wrap = ta.closest('.ai-summary-card')?.querySelector('.ai-copy-wrap');
-      if (wrap) wrap.hidden = !ta.value.trim();
+      autoResizeTextarea(ta);
+      const btn = ta.closest('.ai-summary-card')?.querySelector('.btn-copy-report');
+      if (btn) btn.disabled = !ta.value.trim();
     });
   });
 
@@ -256,18 +252,16 @@ function summaryTemplate({ st, sessions, report, mode, label, weekReports = [] }
 
     <div class="ai-summary-card">
       <div class="ai-summary-head">
-        <div class="summary-note-title"><span class="emoji" aria-hidden="true">✨</span> Nhận xét ${mode === 'week' ? 'tuần' : 'tháng'} gửi phụ huynh</div>
-      </div>
-      <textarea class="ai-summary-textarea" data-report-content="${mode}" rows="7" placeholder="Nhập từ khóa gợi ý rồi bấm AI tạo nhận xét...">${escapeHTML(draft)}</textarea>
-      <div class="ai-summary-actions">
-        <button class="btn btn-outline" data-action="ai-${mode}"><span class="emoji" aria-hidden="true">🤖</span> AI tạo nhận xét</button>
-        <button class="btn btn-primary" data-action="save-${mode}-report">Lưu nhận xét</button>
-      </div>
-      <div class="ai-copy-wrap" ${draft ? '' : 'hidden'}>
-        <button class="btn-copy-report" type="button" data-action="copy-${mode}-report">
+        <div class="summary-note-title"><span class="emoji" aria-hidden="true">✨</span> Nhận xét ${mode === 'week' ? 'tuần' : 'tháng'}</div>
+        <button class="btn-copy-report" type="button" data-action="copy-${mode}-report" ${draft ? '' : 'disabled'}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="1.5"/></svg>
           Sao chép
         </button>
+      </div>
+      <textarea class="ai-summary-textarea" data-report-content="${mode}" rows="1" placeholder="Nhập từ khóa gợi ý rồi bấm AI tạo nhận xét...">${escapeHTML(draft)}</textarea>
+      <div class="ai-summary-actions">
+        <button class="btn btn-outline" data-action="ai-${mode}"><span class="emoji" aria-hidden="true">🤖</span> AI tạo nhận xét</button>
+        <button class="btn btn-primary" data-action="save-${mode}-report">Lưu nhận xét</button>
       </div>
     </div>`;
 }
@@ -286,7 +280,7 @@ function sessionListTemplate(sessions) {
         const hideNote = shouldHideSessionNote(status);
         const noteBody = hideNote ? '' : `
           <div class="session-note-content" hidden>
-            <textarea class="session-note-textarea" rows="3" placeholder="Nhận xét buổi học..." data-session-id="${escapeHTML(s.id)}" data-original="${escapeHTML(note)}">${escapeHTML(note)}</textarea>
+            <textarea class="session-note-textarea" rows="1" placeholder="Nhận xét buổi học..." data-session-id="${escapeHTML(s.id)}" data-original="${escapeHTML(note)}">${escapeHTML(note)}</textarea>
             <div class="session-note-editor-actions">
               <button class="btn btn-sm btn-outline" type="button" data-action="note-cancel" data-session-id="${escapeHTML(s.id)}">Hủy</button>
               <button class="btn btn-sm btn-primary" type="button" data-action="note-save" data-session-id="${escapeHTML(s.id)}">Lưu</button>
@@ -326,6 +320,11 @@ function bindSessionNoteToggles() {
       const isOpen = item.classList.toggle('is-open');
       body.hidden = !isOpen;
       button.setAttribute('aria-expanded', String(isOpen));
+      // Resize textarea sau khi hiện (scrollHeight chỉ đúng khi element visible)
+      if (isOpen) {
+        const ta = body.querySelector('.session-note-textarea');
+        if (ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
+      }
     });
   });
 }
@@ -336,9 +335,8 @@ function autoResizeTextarea(ta) {
 }
 
 function bindInlineNoteEditors() {
-  // Auto-resize cho các trình duyệt chưa hỗ trợ field-sizing
   page.querySelectorAll('.session-note-textarea').forEach(ta => {
-    autoResizeTextarea(ta);
+    // Chỉ bind input event — resize lúc mở được xử lý trong bindSessionNoteToggles
     ta.addEventListener('input', () => autoResizeTextarea(ta));
   });
 
@@ -515,7 +513,9 @@ SÁNG TẠO: Thay đổi điểm nhấn mỗi lần — có thể bắt đầu b
       textarea.style.borderColor = 'var(--violet)';
       setTimeout(() => { textarea.style.borderColor = ''; }, 1500);
       // Hiện nút copy
-      textarea.closest('.ai-summary-card')?.querySelector('.ai-copy-wrap')?.removeAttribute('hidden');
+      const copyBtn = textarea.closest('.ai-summary-card')?.querySelector('.btn-copy-report');
+      if (copyBtn) copyBtn.disabled = false;
+      autoResizeTextarea(textarea);
     } else {
       throw new Error('Không có phản hồi từ AI');
     }
