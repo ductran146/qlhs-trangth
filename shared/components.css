@@ -2551,8 +2551,6 @@
   box-sizing: border-box;
   border: 1px solid var(--border);
   border-radius: 10px;
-  margin: 0 var(--space-3);
-  width: calc(100% - var(--space-3) * 2);
   padding: 10px 12px;
   font-size: 13px;
   line-height: 1.5;

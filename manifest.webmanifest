@@ -1,0 +1,26 @@
+{
+  "name": "Nhật ký can thiệp",
+  "short_name": "Cô Trang",
+  "description": "Ứng dụng quản lý học sinh và nhật ký can thiệp.",
+  "lang": "vi-VN",
+  "start_url": "./pages/checkin.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFFFFF",
+  "theme_color": "#735BF9",
+  "icons": [
+    {
+      "src": "assets/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
