@@ -451,32 +451,52 @@ async function aiGenerateReport({ mode, st, sessions, label, weekReports, textar
   textarea.value = '';
   textarea.placeholder = 'Đang viết nhận xét...';
 
+  // Random seed để tránh cache, buộc model tạo output khác nhau mỗi lần
+  const seed = Math.random().toString(36).slice(2, 8);
+
+  const BAD_PATTERNS = isTuan
+    ? ['Tuần này con', 'Trong tuần này', 'Tuần vừa rồi', 'Nhìn chung tuần']
+    : ['Tháng này con', 'Trong tháng này', 'Nhìn lại tháng'];
+
   const system = `Bạn là giáo viên can thiệp sớm cho trẻ đặc biệt tại Việt Nam.
 Viết nhận xét ${isTuan ? 'tuần' : 'tháng'} gửi phụ huynh bằng tiếng Việt.
+Mã phiên: ${seed}
 
-Yêu cầu bắt buộc:
-- Giọng nhẹ nhàng, thân mật như nhắn tin với phụ huynh — dùng "mẹ ơi", "con", "cô", "ba mẹ"
-- Không dùng emoji
-- ${isTuan ? '4-6 câu' : '6-8 câu'} liền mạch, không gạch đầu dòng
-- Trung thực với dữ liệu: nếu ghi "hay cáu" thì không nói "tiến bộ rõ rệt"
-- Mỗi lần tạo phải khác với lần trước — dùng từ ngữ, cấu trúc câu khác nhau
+YÊU CẦU BẮT BUỘC:
+- Giọng nhẹ nhàng, thân mật như nhắn tin — dùng "mẹ ơi", "con", "cô", "ba mẹ"
+- Không dùng emoji, không gạch đầu dòng
+- ${isTuan ? '4-6 câu' : '6-8 câu'} liền mạch thành đoạn văn
+- Trung thực: nếu data ghi "hay cáu" thì không viết "tiến bộ rõ rệt"
 - Không bắt đầu bằng "Kính gửi" hay lời chào trang trọng
-- Kết thúc bằng 1 câu thân mật mời phụ huynh nhắn nếu cần`;
+- Kết thúc bằng 1 câu mời phụ huynh nhắn nếu cần
+
+TUYỆT ĐỐI KHÔNG dùng các cụm mở đầu sau (đã dùng nhiều lần):
+${BAD_PATTERNS.map(p => `"${p}"`).join(', ')}
+
+SÁNG TẠO: Thay đổi điểm nhấn mỗi lần — có thể bắt đầu bằng một hành động cụ thể của bé, một khoảnh khắc đặc biệt trong buổi học, hoặc một tiến bộ nhỏ đáng ghi nhận. Dùng từ ngữ tự nhiên, không sáo rỗng.`;
+
+  // Lấy ngày cụ thể của các buổi có nhận xét
+  const sessionDates = sessions
+    .filter(s => sessionNoteText(s))
+    .map(s => s.date)
+    .join(', ');
 
   const dataCtx = [
     `Tên bé: ${name}`,
     `Kỳ: ${isTuan?'Tuần':'Tháng'} ${label}`,
-    totalSlots ? `Tổng ca đã học: ${totalSlots}` : '',
+    totalSlots ? `Số ca đã học: ${totalSlots}` : '',
     absentCount ? `Số buổi nghỉ: ${absentCount}` : '',
-    noteTexts ? `Nhận xét từng buổi: ${noteTexts}` : '',
-    userKW ? `Từ khóa giáo viên gợi ý: ${userKW}` : '',
-    `Yêu cầu: Viết khác với các tuần trước, không lặp cấu trúc câu cũ.`,
+    sessionDates ? `Ngày có nhận xét: ${sessionDates}` : '',
+    noteTexts ? `Nhận xét từng buổi:\n${noteTexts}` : '',
+    userKW ? `Giáo viên muốn nhấn mạnh: ${userKW}` : '',
   ].filter(Boolean).join('\n');
 
   try {
     const payload = btoa(unescape(encodeURIComponent(JSON.stringify({
       system,
       messages: [{ role: 'user', content: dataCtx }],
+      temperature: 0.92,
+      max_tokens: 400,
     }))));
 
     const res = await fetch('https://nxhs-worker.ductrangdesign.workers.dev', {
