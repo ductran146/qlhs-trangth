@@ -103,6 +103,8 @@
   display: grid; grid-template-columns: repeat(5, 1fr);
   z-index: 50;
   padding-bottom: env(safe-area-inset-bottom, 0);
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
 }
 .bottom-nav-item {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
