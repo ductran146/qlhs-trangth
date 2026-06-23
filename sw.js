@@ -1,4 +1,4 @@
-const CACHE_NAME = 'qlhs-pwa-v20260623-2';
+const CACHE_NAME = 'qlhs-pwa-v20260623-3';
 const CORE_ASSETS = [
   './',
   './index.html',

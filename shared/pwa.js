@@ -63,7 +63,107 @@
     handleInstallClick();
   });
 
-  document.addEventListener('DOMContentLoaded', applyPwaClass);
-  window.addEventListener('pageshow', applyPwaClass);
-  document.addEventListener('visibilitychange', applyPwaClass);
+
+
+  function setupPullToRefresh() {
+    if (!isStandaloneMode()) return;
+    if (!('ontouchstart' in window)) return;
+    if (document.documentElement.dataset.pullRefreshReady === '1') return;
+    document.documentElement.dataset.pullRefreshReady = '1';
+
+    const indicator = document.createElement('div');
+    indicator.className = 'pwa-pull-refresh';
+    indicator.setAttribute('aria-hidden', 'true');
+    indicator.innerHTML = '<span class="pwa-pull-refresh-spinner"></span><span class="pwa-pull-refresh-text">Kéo để làm mới</span>';
+    document.body.appendChild(indicator);
+
+    const textEl = indicator.querySelector('.pwa-pull-refresh-text');
+    let startX = 0;
+    let startY = 0;
+    let pulling = false;
+    let refreshing = false;
+    let distance = 0;
+    const threshold = 74;
+    const maxDistance = 118;
+
+    const getScrollTop = () => document.scrollingElement?.scrollTop || document.documentElement.scrollTop || document.body.scrollTop || 0;
+
+    function setDistance(value) {
+      distance = Math.max(0, Math.min(value, maxDistance));
+      const progress = Math.min(distance / threshold, 1);
+      indicator.style.setProperty('--pull-distance', `${distance}px`);
+      indicator.style.setProperty('--pull-progress', String(progress));
+      indicator.classList.toggle('is-ready', distance >= threshold);
+      if (textEl) textEl.textContent = distance >= threshold ? 'Thả để làm mới' : 'Kéo để làm mới';
+    }
+
+    function resetPull() {
+      pulling = false;
+      distance = 0;
+      indicator.style.setProperty('--pull-distance', '0px');
+      indicator.style.setProperty('--pull-progress', '0');
+      indicator.classList.remove('is-visible', 'is-ready');
+      if (textEl) textEl.textContent = 'Kéo để làm mới';
+    }
+
+    window.addEventListener('touchstart', (event) => {
+      if (refreshing || !isStandaloneMode()) return;
+      if (getScrollTop() > 0) return;
+      const touch = event.touches?.[0];
+      if (!touch) return;
+      startX = touch.clientX;
+      startY = touch.clientY;
+      pulling = true;
+      distance = 0;
+    }, { passive: true });
+
+    window.addEventListener('touchmove', (event) => {
+      if (!pulling || refreshing) return;
+      if (getScrollTop() > 0) {
+        resetPull();
+        return;
+      }
+
+      const touch = event.touches?.[0];
+      if (!touch) return;
+      const deltaY = touch.clientY - startY;
+      const deltaX = Math.abs(touch.clientX - startX);
+      if (deltaY <= 0 || deltaX > deltaY) return;
+
+      event.preventDefault();
+      indicator.classList.add('is-visible');
+      setDistance(deltaY * 0.55);
+    }, { passive: false });
+
+    window.addEventListener('touchend', () => {
+      if (!pulling || refreshing) return;
+      if (distance >= threshold) {
+        refreshing = true;
+        indicator.classList.add('is-visible', 'is-refreshing');
+        indicator.classList.remove('is-ready');
+        indicator.style.setProperty('--pull-distance', `${threshold}px`);
+        if (textEl) textEl.textContent = 'Đang làm mới';
+        window.setTimeout(() => window.location.reload(), 180);
+        return;
+      }
+      resetPull();
+    }, { passive: true });
+
+    window.addEventListener('touchcancel', () => {
+      if (!refreshing) resetPull();
+    }, { passive: true });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    applyPwaClass();
+    setupPullToRefresh();
+  });
+  window.addEventListener('pageshow', () => {
+    applyPwaClass();
+    setupPullToRefresh();
+  });
+  document.addEventListener('visibilitychange', () => {
+    applyPwaClass();
+    if (document.visibilityState === 'visible') setupPullToRefresh();
+  });
 })();

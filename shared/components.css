@@ -3814,3 +3814,57 @@ html.is-pwa .main-content,
 body.is-pwa .main-content {
   padding-bottom: calc(var(--nav-h) + 20px + env(safe-area-inset-bottom, 0px)) !important;
 }
+
+
+/* ── PWA pull-to-refresh ─────────────────────────────────────
+   Standalone app mode only. Adds a native-app-like pull-down refresh. */
+.pwa-pull-refresh {
+  position: fixed;
+  z-index: 9999;
+  top: calc(8px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 142px;
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(223, 227, 230, .9);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .92);
+  color: var(--token-text-content, #383D42);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 8px 24px rgba(16, 16, 19, .12);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  pointer-events: none;
+  opacity: var(--pull-progress, 0);
+  transform: translate3d(-50%, calc(-54px + var(--pull-distance, 0px)), 0) scale(calc(.92 + (var(--pull-progress, 0) * .08)));
+  transition: opacity .18s ease, transform .18s ease;
+}
+.pwa-pull-refresh.is-visible {
+  opacity: 1;
+}
+.pwa-pull-refresh.is-ready {
+  color: var(--token-primary, #735BF9);
+}
+.pwa-pull-refresh-spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgba(115, 91, 249, .22);
+  border-top-color: var(--token-primary, #735BF9);
+  transform: rotate(calc(var(--pull-progress, 0) * 180deg));
+}
+.pwa-pull-refresh.is-refreshing .pwa-pull-refresh-spinner {
+  animation: pwaPullRefreshSpin .72s linear infinite;
+}
+@keyframes pwaPullRefreshSpin {
+  to { transform: rotate(360deg); }
+}
+@media (display-mode: browser) {
+  .pwa-pull-refresh { display: none !important; }
+}
