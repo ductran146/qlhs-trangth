@@ -62,9 +62,9 @@ export function render(el, dataset) {
           <div class="form-group sm-start-date-group">
             <label class="form-label">Ngày bắt đầu học *</label>
             <div class="sm-date-wrap">
-              <button type="button" class="form-input sm-date-display" id="smDateDisplay" autocomplete="off" aria-haspopup="true">
+              <button type="button" class="sm-date-display" id="smDateDisplay" autocomplete="off" aria-haspopup="true">
                 <span id="smDateText">Chọn ngày</span>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M8 2v3M16 2v3M3 8h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M16 2V6M8 2V6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M13 4H11C7.22876 4 5.34315 4 4.17157 5.17157C3 6.34315 3 8.22876 3 12V14C3 17.7712 3 19.6569 4.17157 20.8284C5.34315 22 7.22876 22 11 22H13C16.7712 22 18.6569 22 19.8284 20.8284C21 19.6569 21 17.7712 21 14V12C21 8.22876 21 6.34315 19.8284 5.17157C18.6569 4 16.7712 4 13 4Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 10H21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
               <input type="hidden" id="smStartDate">
               <div class="sm-calendar" id="smCalendar" hidden></div>
@@ -122,7 +122,14 @@ export function render(el, dataset) {
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">Giờ bắt đầu</label>
-            <input class="form-input" id="smTime" type="time" value="08:00">
+            <div class="sm-time-wrap">
+              <input class="form-input sm-time-native" id="smTime" type="time" value="08:00">
+              <div class="sm-time-custom">
+                <input class="sm-time-part" id="smTimeHour" type="text" inputmode="numeric" maxlength="2" placeholder="HH" autocomplete="off" tabindex="0">
+                <span class="sm-time-sep">:</span>
+                <input class="sm-time-part" id="smTimeMin" type="text" inputmode="numeric" maxlength="2" placeholder="MM" autocomplete="off" tabindex="0">
+              </div>
+            </div>
           </div>
           <div class="form-group">
             <label class="form-label">Số ca mỗi lịch học</label>
@@ -166,6 +173,7 @@ export function render(el, dataset) {
 
   // Expose open/close globally so pages can call them
   window.StudentModal = { open: (id) => _open(el, id), close };
+  _bindCustomTime(el);
 }
 
 function _open(el, id = null) {
@@ -198,6 +206,7 @@ function _open(el, id = null) {
   el.querySelector('#smFatherName').value = st?.fatherName || '';
   el.querySelector('#smMotherName').value = st?.motherName || '';
   el.querySelector('#smTime').value    = _formatTimeForInput(st?.schedTime || '08:00');
+  _syncCustomTime(el);
   el.querySelector('#smDuration').value = String(st?.duration || 1);
   el.querySelector('#smFee').value     = st?.feePerSlot ? _formatFee(st.feePerSlot) : '';
 
@@ -583,4 +592,105 @@ function _buildDayPicker(el, selected) {
          data-day="${i}">${d}</div>`).join('');
   el.querySelectorAll('.day-chip').forEach(c =>
     c.addEventListener('click', () => c.classList.toggle('selected')));
+}
+
+
+// ── Custom time input: chỉ active trên desktop (pointer: fine) ──────────────
+
+function _syncCustomTime(el) {
+  const native = el.querySelector('#smTime');
+  const hour   = el.querySelector('#smTimeHour');
+  const min    = el.querySelector('#smTimeMin');
+  if (!native || !hour || !min) return;
+  const [h, m] = (native.value || '08:00').split(':');
+  hour.value = h || '08';
+  min.value  = m || '00';
+}
+
+function _bindCustomTime(el) {
+  const native = el.querySelector('#smTime');
+  const wrap   = el.querySelector('.sm-time-custom');
+  const hour   = el.querySelector('#smTimeHour');
+  const min    = el.querySelector('#smTimeMin');
+  if (!native || !wrap || !hour || !min || wrap.dataset.bound === '1') return;
+  wrap.dataset.bound = '1';
+
+  const isDesktopTimeInput = () => window.matchMedia?.('(pointer: fine)').matches ?? true;
+  const selectField = (field) => requestAnimationFrame(() => field.select());
+  const focusHour = () => {
+    hour.focus({ preventScroll: true });
+    selectField(hour);
+  };
+  const focusMin = () => {
+    min.focus({ preventScroll: true });
+    selectField(min);
+  };
+  const clampHour = (value) => {
+    if (!value) return '';
+    return String(Math.min(parseInt(value, 10) || 0, 23)).padStart(2, '0');
+  };
+  const clampMinute = (value) => {
+    if (!value) return '';
+    return String(Math.min(parseInt(value, 10) || 0, 59)).padStart(2, '0');
+  };
+
+  // Desktop: bấm vào bất kỳ vị trí nào của ô giờ đều bắt đầu từ phần giờ.
+  // Mobile/tablet vẫn dùng native time picker nên không bị ảnh hưởng.
+  wrap.addEventListener('mousedown', (event) => {
+    if (!isDesktopTimeInput()) return;
+    event.preventDefault();
+    focusHour();
+  });
+
+  // Focus bằng Tab vẫn chọn toàn bộ phần đang focus để nhập đè nhanh.
+  hour.addEventListener('focus', () => selectField(hour));
+  min.addEventListener('focus',  () => selectField(min));
+
+  // Desktop: nhập liền 4 số. 2 số đầu = giờ, 2 số sau = phút.
+  hour.addEventListener('input', () => {
+    const digits = hour.value.replace(/\D/g, '').slice(0, 4);
+
+    if (digits.length > 2) {
+      hour.value = clampHour(digits.slice(0, 2));
+      min.value  = clampMinute(digits.slice(2, 4));
+      _updateNativeTime(native, hour, min);
+      if (digits.length < 4) focusMin();
+      return;
+    }
+
+    hour.value = digits;
+    if (digits.length === 2) {
+      hour.value = clampHour(digits);
+      _updateNativeTime(native, hour, min);
+      focusMin();
+      return;
+    }
+
+    _updateNativeTime(native, hour, min);
+  });
+
+  min.addEventListener('input', () => {
+    const digits = min.value.replace(/\D/g, '').slice(0, 2);
+    min.value = digits.length === 2 ? clampMinute(digits) : digits;
+    _updateNativeTime(native, hour, min);
+  });
+
+  hour.addEventListener('blur', () => {
+    hour.value = clampHour(hour.value) || '08';
+    _updateNativeTime(native, hour, min);
+  });
+  min.addEventListener('blur', () => {
+    min.value = clampMinute(min.value) || '00';
+    _updateNativeTime(native, hour, min);
+  });
+
+  min.addEventListener('keydown', e => {
+    if (e.key === 'Backspace' && !min.value) focusHour();
+  });
+}
+
+function _updateNativeTime(native, hour, min) {
+  const h = (hour.value || '08').padStart(2, '0');
+  const m = (min.value  || '00').padStart(2, '0');
+  native.value = `${h}:${m}`;
 }

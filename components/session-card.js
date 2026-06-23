@@ -1,9 +1,7 @@
 /**
  * components/session-card.js
  * Collapsible card showing and editing one plain session note.
- * dataset: data-session-id="i123"
- *
- * Used by: pages/notes.html
+ * Pattern: giống student-detail.html — textarea trực tiếp, Hủy/Lưu
  */
 import { Store, fmtDate, statusLabel } from '../shared/store.js';
 
@@ -17,14 +15,14 @@ function _render(el, sessionId, hideName = false) {
   const sess = Store.get('sessions').find(s => s.id === sessionId);
   if (!sess) { el.innerHTML = ''; return; }
 
-  const st      = Store.get('students').find(s => s.id === sess.studentId);
+  const st       = Store.get('students').find(s => s.id === sess.studentId);
   const noteText = getPlainNote(sess);
-  const hasNote = Boolean(noteText);
-  const canEdit = sess.status === 'taught' || sess.status === 'makeup';
   const dotColor = {
     taught: 'var(--green)', absent: 'var(--red)',
     makeup: 'var(--violet)', busy: 'var(--amber)'
   }[sess.status] || 'var(--ink-3)';
+
+  const hideNote = sess.status === 'absent' || sess.status === 'busy';
 
   el.innerHTML = `
     <div class="session-card">
@@ -32,7 +30,7 @@ function _render(el, sessionId, hideName = false) {
         <div class="sc-dot" style="background:${dotColor}"></div>
         <div class="sc-info">
           <div class="sc-name">
-            ${hideName ? (fmtDate(sess.date)) : (st ? st.name : '—')}
+            ${hideName ? fmtDate(sess.date) : (st ? st.name : '—')}
           </div>
           <div class="sc-date" ${hideName ? 'hidden' : ''}>
             ${fmtDate(sess.date)} · ${sess.startTime || '--:--'}
@@ -46,76 +44,56 @@ function _render(el, sessionId, hideName = false) {
         </div>
       </div>
 
-      <div class="sc-body ${hasNote ? 'open' : ''}">
-        ${canEdit ? `
-          <div class="session-note-view ${hasNote ? '' : 'empty'}">
-            ${hasNote ? `
-              <div class="note-block note-block-plain">
-                <div class="note-block-text">${escapeHtml(noteText)}</div>
-              </div>
-            ` : '<p class="text-muted fs-13">Chưa có nhận xét cho buổi học này</p>'}
-          </div>
-
-          <div class="session-note-form" ${hasNote ? 'hidden' : ''}>
-            <div class="note-grid note-grid-plain">
-              ${noteField('noteText', 'Nhận xét buổi học', noteText)}
+      <div class="sc-body ${noteText ? 'open' : ''}">
+        ${!hideNote ? `
+          <div class="session-note-content">
+            <textarea class="note-ta" name="noteText" rows="1"
+              placeholder="Nhận xét buổi học..."
+              data-original="${escapeHtml(noteText)}">${escapeHtml(noteText)}</textarea>
+            <div class="session-note-editor-actions">
+              <button type="button" class="btn btn-sm btn-outline" data-action="note-cancel">Hủy</button>
+              <button type="button" class="btn btn-sm btn-primary" data-action="save-notes">Lưu</button>
             </div>
           </div>
-
-          <div class="session-note-actions">
-            <button type="button" class="session-note-btn secondary" data-action="edit-notes">
-              ${hasNote ? 'Sửa nhận xét' : '+ Thêm nhận xét'}
-            </button>
-            <button type="button" class="session-note-btn primary" data-action="save-notes" ${hasNote ? 'hidden' : ''}>
-              Lưu nhận xét
-            </button>
-          </div>
-        ` : `
-          <p class="text-muted fs-13">Ca ${statusLabel(sess.status)} — không có nhận xét buổi học</p>
-        `}
+        ` : ''}
       </div>
     </div>`;
 
-  const body = el.querySelector('.sc-body');
+  const body    = el.querySelector('.sc-body');
   const chevron = el.querySelector('.sc-chevron');
+  const ta      = el.querySelector('.note-ta');
+
+  // Resize textarea khi visible
+  if (ta && noteText) autoResize(ta);
 
   el.querySelector('[data-action="toggle"]').addEventListener('click', () => {
     body.classList.toggle('open');
     chevron.classList.toggle('open', body.classList.contains('open'));
+    if (body.classList.contains('open') && ta) autoResize(ta);
   });
 
-  el.querySelector('[data-action="edit-notes"]')?.addEventListener('click', (event) => {
-    event.stopPropagation();
-    body.classList.add('open');
-    el.querySelector('.session-note-form')?.removeAttribute('hidden');
-    el.querySelector('[data-action="save-notes"]')?.removeAttribute('hidden');
-    chevron.classList.add('open');
+  if (ta) {
+    ta.addEventListener('input', () => autoResize(ta));
+  }
+
+  el.querySelector('[data-action="note-cancel"]')?.addEventListener('click', e => {
+    e.stopPropagation();
+    if (ta) { ta.value = ta.dataset.original || ''; autoResize(ta); }
   });
 
-  el.querySelector('[data-action="save-notes"]')?.addEventListener('click', (event) => {
-    event.stopPropagation();
-    const newNote = valueOf(el, 'noteText');
-    Store.upsertSession({
-      ...sess,
-      noteText: newNote,
-      noteSkill: '',
-      noteBehavior: '',
-      noteProgress: '',
-      noteParent: '',
-    });
+  el.querySelector('[data-action="save-notes"]')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const newNote = ta?.value.trim() || '';
+    const existing = Store.get('sessions').find(s => s.id === sessionId);
+    if (!existing) return;
+    Store._writeNoteOnly(sessionId, newNote);
+    if (ta) ta.dataset.original = newNote;
   });
 }
 
-function valueOf(root, name) {
-  return root.querySelector(`[name="${name}"]`)?.value.trim() || '';
-}
-
-function noteField(name, label, value = '') {
-  return `
-    <label>
-      <div class="note-field-label">${label}</div>
-      <textarea class="note-ta" name="${name}" rows="4" placeholder="Nhập nhận xét chung cho buổi học...">${escapeHtml(value || '')}</textarea>
-    </label>`;
+function autoResize(ta) {
+  ta.style.height = 'auto';
+  ta.style.height = ta.scrollHeight + 'px';
 }
 
 function getPlainNote(sess) {

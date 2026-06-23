@@ -56,7 +56,7 @@ function render() {
 
   const students = Store.get('students');
   const taught   = Store.get('sessions')
-    .filter(s => s.status === 'taught' && s.date >= mStart && s.date <= mEnd);
+    .filter(s => ['taught','makeup','partial'].includes(s.status) && s.date >= mStart && s.date <= mEnd);
   const absent   = Store.get('sessions')
     .filter(s => s.status === 'absent' && s.date >= mStart && s.date <= mEnd);
 
@@ -67,7 +67,7 @@ function render() {
     // Fallback: nếu học sinh đã bị xóa, dùng feePerSlot đã snapshot vào session
     const fee = st?.feePerSlot || sess.feePerSlot || 0;
     if (!fee && !st) continue;
-    const amt = fee * (Number(sess.actualSlots ?? sess.duration) || 0);
+    const amt = fee * (Number(sess.actualSlots ?? sess.plannedSlots ?? sess.duration) || 0);
     total += amt;
     const key = sess.studentId;
     const displayName = st?.name || sess.studentName || '(Đã xóa)';
@@ -76,7 +76,7 @@ function render() {
       count: 0, slots: 0, amt: 0
     };
     byStudent[key].count++;
-    byStudent[key].slots += Number(sess.actualSlots ?? sess.duration) || 0;
+    byStudent[key].slots += Number(sess.actualSlots ?? sess.plannedSlots ?? sess.duration) || 0;
     byStudent[key].amt   += amt;
   }
 
@@ -108,7 +108,7 @@ function render() {
         <div class="stat-lbl">Buổi đã dạy</div>
       </div>
       <div class="stat-box green">
-        <div class="stat-val">${taught.reduce((a,s)=>a+s.duration,0)}</div>
+        <div class="stat-val">${taught.reduce((a,s)=>a+Number(s.actualSlots??s.plannedSlots??s.duration??0),0)}</div>
         <div class="stat-lbl">Tổng số ca</div>
       </div>
       <div class="stat-box amber">

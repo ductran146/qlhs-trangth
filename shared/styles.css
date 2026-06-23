@@ -226,8 +226,8 @@ ul, ol { list-style: none; }
 
 /* ── SECTION LABEL ───────────────────────── */
 .section-label {
-  font-size: 12px; font-weight: 700; color: var(--ink-3);
-  letter-spacing: .5px; text-transform: uppercase; margin-bottom: 4px;
+  font-size: 11px; font-weight: 700; color: var(--ink-3);
+  letter-spacing: .5px; text-transform: uppercase; margin-bottom: 10px;
 }
 
 /* ── BUTTONS ─────────────────────────────── */
@@ -283,8 +283,8 @@ ul, ol { list-style: none; }
 .avatar.xs { width: 28px; height: 28px; font-size: 11px; }
 
 /* ── FORM ────────────────────────────────── */
-.form-group  { margin-bottom: 12px; }
-.form-label  { display: block; font-size: 12px; font-weight: 600; color: var(--ink-2); margin-bottom: 5px; }
+.form-group  { margin-bottom: 16px; }
+.form-label  { display: block; font-size: 12px; font-weight: 600; color: var(--ink-2); margin-bottom: 8px; }
 .form-input  {
   width: 100%; padding: 10px 12px;
   border: 1px solid var(--border-2); border-radius: var(--r-sm);
@@ -356,7 +356,7 @@ select.form-input {
 .modal-title { font-size: 17px; font-weight: 800; margin-bottom: 16px; padding-right: 48px; }
 .modal-section {
   font-size: 11px; font-weight: 700; color: var(--ink-3);
-  text-transform: uppercase; letter-spacing: .5px; margin: 14px 0 8px;
+  text-transform: uppercase; letter-spacing: .5px; margin: 0px 0 8px;
 }
 .modal-footer { display: flex; gap: 8px; margin-top: 20px; }
 .modal-footer .btn { flex: 1; padding: 12px; font-size: 14px; }
@@ -810,6 +810,16 @@ textarea,
   grid-template-columns: minmax(0, 1fr) !important;
 }
 
+/* Edit mode: ngày bắt đầu + trạng thái cùng 1 hàng */
+.student-modal .sm-start-status-row.is-edit-mode {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  gap: 16px !important;
+}
+.student-modal .sm-start-status-row.is-edit-mode .form-group {
+  grid-column: auto !important;
+}
+
 .student-modal .sm-start-status-row.is-add-mode .sm-start-date-group,
 .student-modal .sm-start-status-row:not(.is-edit-mode) .sm-start-date-group {
   grid-column: 1 / -1 !important;
@@ -827,8 +837,7 @@ textarea,
 
   .student-modal .form-row:not(.sm-name-row):not(.sm-birth-gender-row):not(.sm-dob-gender-row),
   .student-modal .sm-start-status-row,
-  .student-modal .sm-start-status-row.is-add-mode,
-  .student-modal .sm-start-status-row.is-edit-mode {
+  .student-modal .sm-start-status-row.is-add-mode {
     display: grid !important;
     grid-template-columns: minmax(0, 1fr) !important;
     gap: 0px !important;
@@ -851,6 +860,13 @@ textarea,
     width: 100% !important;
     max-width: 100% !important;
     min-width: 0 !important;
+  }
+
+  /* Edit mode: ngày + trạng thái cùng 1 hàng, mỗi field 1 cột */
+  .student-modal .sm-start-status-row.is-edit-mode .sm-start-date-group,
+  .student-modal .sm-start-status-row.is-edit-mode .sm-status-group {
+    grid-column: auto !important;
+    width: auto !important;
   }
 
   /* 2-column rows: reset grid-column so each form-group occupies 1 column */
@@ -1131,7 +1147,7 @@ textarea,
   grid-column: auto !important;
   min-width: 0 !important;
   width: 100% !important;
-  margin-bottom: 0;
+  margin-bottom: 16px;
 }
 
 .student-modal .ds-select,
@@ -1818,8 +1834,8 @@ input[type="search"]::-webkit-search-decoration {
   width: 100%;
   height: 44px;
   padding: 0 12px;
-  display: flex;
-  align-items: center;
+  display: flex !important;
+  align-items: center !important;
   justify-content: space-between;
   gap: 8px;
   border: 1px solid var(--border);
@@ -1830,9 +1846,11 @@ input[type="search"]::-webkit-search-decoration {
   font-size: 15px;
   cursor: pointer;
   text-align: left;
+  line-height: 1;
 }
 .sm-date-display:focus { outline: none; border-color: var(--violet); box-shadow: 0 0 0 4px rgba(115,91,249,.12); }
-.sm-date-display svg { flex-shrink: 0; color: var(--ink-3); }
+.sm-date-display span { line-height: 1; }
+.sm-date-display svg { flex-shrink: 0; color: var(--ink-2); display: block; }
 
 .sm-calendar {
   position: absolute;
@@ -1951,3 +1969,159 @@ input[type="search"]::-webkit-search-decoration {
   text-overflow: ellipsis !important;
 }
 
+
+/* ── Custom time input ───────────────────────────────────────────────────── */
+.sm-time-wrap { position: relative; }
+
+/* Mobile/tablet: native time picker, ẩn custom */
+.sm-time-native { display: block; }
+.sm-time-custom { display: none; }
+
+/* Desktop (có chuột): custom HH:MM, ẩn native */
+@media (pointer: fine) {
+  .sm-time-native { display: none !important; }
+  .sm-time-custom {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    width: 100%;
+    height: 44px;
+    padding: 0 12px;
+    border: 1px solid var(--border-2);
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
+    box-sizing: border-box;
+    cursor: text;
+  }
+  .sm-time-custom:focus-within {
+    border-color: var(--violet);
+    box-shadow: var(--focus-ring);
+    background: var(--surface);
+  }
+}
+.sm-time-part {
+  width: 32px;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 15px;
+  color: var(--ink);
+  text-align: center;
+  padding: 0;
+}
+.sm-time-part::selection { background: var(--violet-l); }
+.sm-time-sep { font-size: 15px; color: var(--ink); user-select: none; }
+
+/* ── Fix desktop time input UX: one visible field, click starts at hour ───── */
+.student-modal .sm-time-wrap {
+  position: relative;
+}
+
+/* Mobile/tablet: keep native time picker exactly as before */
+.student-modal .sm-time-wrap > input#smTime.sm-time-native.form-input[type="time"] {
+  display: block !important;
+}
+
+.student-modal .sm-time-wrap > .sm-time-custom {
+  display: none !important;
+}
+
+/* Desktop pointer: use custom HH:MM input, hide native time input */
+@media (pointer: fine) {
+  .student-modal .sm-time-wrap > input#smTime.sm-time-native.form-input[type="time"] {
+    display: none !important;
+  }
+
+  .student-modal .sm-time-wrap > .sm-time-custom {
+    display: flex !important;
+    align-items: center;
+    gap: 2px;
+    width: 100%;
+    height: 44px;
+    padding: 0 12px;
+    border: 1px solid var(--border-2);
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
+    box-sizing: border-box;
+    cursor: text;
+  }
+
+  .student-modal .sm-time-wrap > .sm-time-custom:focus-within {
+    border-color: var(--violet);
+    box-shadow: var(--focus-ring);
+    background: var(--surface);
+  }
+}
+
+/* ── Student modal desktop time field: match text/select field style ───────
+   Desktop only. Mobile/tablet keeps the native time picker unchanged. */
+@media (pointer: fine) {
+  .student-modal .sm-time-wrap > .sm-time-custom {
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    min-height: 44px !important;
+    height: 44px !important;
+    max-height: 44px !important;
+    padding: 11px 14px !important;
+    gap: 0 !important;
+    border: 1px solid var(--ds-field-border, #CBD2D6) !important;
+    border-radius: 16px !important;
+    background-color: var(--ds-field-bg, #FFFFFF) !important;
+    color: var(--ds-field-text, #101013) !important;
+    font-family: Inter, var(--font, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif) !important;
+    font-size: 16px !important;
+    font-weight: 400 !important;
+    line-height: 20px !important;
+    outline: none !important;
+    box-shadow: none !important;
+    cursor: text !important;
+    transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease !important;
+  }
+
+  .student-modal .sm-time-wrap > .sm-time-custom:focus-within {
+    border-color: var(--ds-field-focus, #735BF9) !important;
+    background-color: var(--ds-field-bg, #FFFFFF) !important;
+    box-shadow: 0 0 0 4px var(--ds-field-focus-ring, #796EFF29) !important;
+    outline: none !important;
+  }
+
+  .student-modal .sm-time-custom .sm-time-part {
+    flex: 0 0 24px !important;
+    width: 24px !important;
+    height: 20px !important;
+    min-height: 20px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: var(--ds-field-text, #101013) !important;
+    font-family: inherit !important;
+    font-size: 16px !important;
+    font-weight: 400 !important;
+    line-height: 20px !important;
+    box-shadow: none !important;
+  }
+
+  .student-modal .sm-time-custom #smTimeHour {
+    text-align: right !important;
+  }
+
+  .student-modal .sm-time-custom #smTimeMin {
+    text-align: left !important;
+  }
+
+  .student-modal .sm-time-custom .sm-time-sep {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    margin: 0 1px !important;
+    color: var(--ds-field-text, #101013) !important;
+    font-size: 16px !important;
+    font-weight: 400 !important;
+    line-height: 20px !important;
+  }
+}
