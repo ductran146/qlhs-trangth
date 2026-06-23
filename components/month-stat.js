@@ -35,13 +35,27 @@ function _draw(el) {
   }, 0);
   const debtSlots   = debts.reduce((sum, d) => sum + Number(d.slots || 0), 0);
 
-  // Ca chưa chấm: có lịch, chưa có status, không phải tương lai
-  const pendingCount = sessions.filter(s => {
-    if (s.date > today) return false;
-    const st = students.find(x => x.id === s.studentId);
-    if (!st) return false;
-    return !s.status || s.status === 'pending';
-  }).length;
+  // Ca chưa chấm: đếm ô lịch có học trong tháng này (đến hôm nay) mà chưa có session record hoặc status pending
+  // Giống cách tính của week-attendance để nhất quán
+  const sessionMap = {};
+  sessions.forEach(s => { sessionMap[`${s.studentId}_${s.date}`] = s; });
+
+  let pendingCount = 0;
+  const activeStudents = students.filter(s => s.status !== 'stopped');
+
+  // Duyệt từng ngày trong tháng đến hôm nay
+  const mStartDate = new Date(year, month, 1);
+  const todayDate  = new Date();
+  for (let d = new Date(mStartDate); d <= todayDate; d.setDate(d.getDate() + 1)) {
+    const dow     = d.getDay();
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    for (const st of activeStudents) {
+      if (!(st.schedDays || []).includes(dow)) continue;
+      if (st.startDate && dateStr < st.startDate) continue;
+      const sess = sessionMap[`${st.id}_${dateStr}`];
+      if (!sess || !sess.status || sess.status === 'pending') pendingCount++;
+    }
+  }
 
   const activeStudentCount = students.filter(s => s.status !== 'stopped').length;
 
