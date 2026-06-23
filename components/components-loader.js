@@ -11,6 +11,7 @@
 const FAST_COMPONENTS = new Set(['bottom-nav', 'sidebar']);
 const DATA_COMPONENTS = new Set([
   'month-overview',
+  'month-stat',
   'week-attendance',
   'checkin-card',
   'session-card',

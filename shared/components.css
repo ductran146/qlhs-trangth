@@ -242,10 +242,17 @@
 .stat-box.red    .stat-val { color: var(--red); }
 
 /* ── MONTH OVERVIEW (first screen) ───────── */
-.month-overview {
+.month-stat-section {
   background: var(--surface);
   padding: 16px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+}
+
+.month-overview {
+  background: var(--surface);
+  padding: 0 16px 16px 16px;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--border);
 }
 .month-overview-head {
   display: flex;
@@ -259,14 +266,15 @@
   line-height: 1.2;
   margin: -4px 0 3px;
 }
-.month-overview p {
+.month-overview p,
+.month-stat-section p {
   font-size: 12px;
   color: var(--ink-3);
 }
 .month-stat-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
+  gap: 12px;
 }
 .month-stat-card {
   background: var(--bg);
@@ -295,16 +303,15 @@
 .month-stat-card.red    .month-stat-value { color: var(--red); }
 .month-stat-card.amber  .month-stat-value { color: var(--amber-d); }
 .month-student-panel {
-  padding-top: 12px;
+  padding-top: 0px;
 }
 .month-student-title {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 8px;
+  margin-bottom: 16px;
   padding-top: 20px;
-  border-top: 1px solid var(--border);
 }
 .month-student-title span {
   font-size: 16px;
@@ -362,6 +369,17 @@
 
 @media (min-width: 640px) {
   .month-stat-grid { grid-template-columns: repeat(5, 1fr); }
+
+  /* Desktop: 3 box cách nhau 20px, có border + border-radius */
+  .month-stat-section,
+  .week-attendance,
+  .month-overview {
+    border: 1px solid var(--border);
+    border-radius: var(--r-xl);
+    border-bottom: 1px solid var(--border); /* reset mobile border-bottom-only */
+    margin-bottom: 20px;
+  }
+
   .month-overview { padding: 18px; }
 }
 
@@ -382,7 +400,8 @@
 .week-attendance {
   background: var(--surface);
   padding: 0 16px 16px;
-  margin-bottom: 18px;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--border);
 }
 .week-attendance-head {
   display: flex;
@@ -390,6 +409,7 @@
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
+  align-items: center;
 }
 .week-attendance-head h2 {
   font-size: 18px;
@@ -603,7 +623,7 @@
   color: var(--ink-3);
   font-size: 12px;
   line-height: 1.35;
-  font-weight: 600;
+  font-weight: 400;
 }
 .week-mobile-row {
   display: grid;
@@ -1547,8 +1567,8 @@
   }
 
   .week-student-cell span {
-    font-size: 10px;
-    font-weight: 700;
+    font-size: 12px;
+    font-weight: 400;
     color: var(--ink-3);
   }
 }
@@ -2569,6 +2589,18 @@
   padding: 0 14px;
   font-size: 12px;
 }
+.btn-link-primary {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--violet);
+  cursor: pointer;
+  text-decoration: none;
+}
+.btn-link-primary:hover { color: var(--violet-d); }
 
 @media (max-width: 767px) {
   .session-note-plain {
@@ -3348,7 +3380,7 @@ input[type="search"]::-webkit-search-decoration {
 
   #pageCheckin .week-attendance {
     overflow: visible !important;
-    margin-bottom: 0 !important;
+    margin-bottom: 12px !important;
     padding-bottom: 16px !important;
   }
 
@@ -3414,12 +3446,17 @@ input[type="search"]::-webkit-search-decoration {
     width: 20px !important;
     height: 20px !important;
     display: block !important;
+    transform: rotate(90deg) !important; /* arrow-right → arrow-down (mặc định đóng) */
+    transition: transform .18s ease !important;
   }
 
   #pageCheckin .week-calendar-card.is-open .week-mobile-student-arrow {
-    transform: rotate(180deg) !important;
     background: var(--violet-l, #EDEEFF) !important;
     color: var(--violet-d, #653DEE) !important;
+  }
+
+  #pageCheckin .week-calendar-card.is-open .week-mobile-student-arrow svg {
+    transform: rotate(-90deg) !important; /* arrow-right → arrow-up khi mở */
   }
 
   #pageCheckin .week-calendar-card.is-collapsed .week-calendar-grid[hidden] {
@@ -3484,12 +3521,18 @@ input[type="search"]::-webkit-search-decoration {
     overflow: hidden !important;
   }
 
-  #pageCheckin .month-overview {
+  #pageCheckin .month-overview,
+  #pageCheckin .week-attendance {
     margin-bottom: 20px !important;
   }
 
   #pageCheckin .week-attendance {
     margin-top: 0 !important;
+  }
+
+  /* Search/sort cách table 20px trên desktop */
+  #pageCheckin .week-attendance .student-toolbar {
+    margin-bottom: 20px !important;
   }
 }
 
@@ -3687,4 +3730,32 @@ input[type="search"]::-webkit-search-decoration {
   background-position: calc(100% - 18px) 18px, calc(100% - 13px) 18px;
   background-size: 5px 5px, 5px 5px;
   background-repeat: no-repeat;
+}
+
+/* ── Copy report button ──────────────────────────────────────────────────── */
+.ai-copy-wrap {
+  display: flex;
+  justify-content: flex-start;
+  padding: 0 0 4px;
+}
+.btn-copy-report {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.btn-copy-report:hover { background: var(--bg); color: var(--ink); }
+
+/* ── Ẩn nút Xuất tuần/tháng trên mobile ─────────────────────────────────── */
+@media (max-width: 639px) {
+  [data-action="export-week"],
+  [data-action="export-month"] { display: none !important; }
 }

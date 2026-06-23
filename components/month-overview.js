@@ -93,39 +93,12 @@ function _draw(el) {
     });
 
   el.innerHTML = `
-    <section class="month-overview" aria-label="Tổng quan tháng này">
-      <div class="month-overview-head">
-        <div>
-          <div class="section-label">Tổng quan tháng này</div>
-          <h2>${label}</h2>
-          <p>Tính đến hôm nay · ${formatToday(now)}</p>
-        </div>
-      </div>
-
-      <div class="month-stat-grid">
-        <div class="month-stat-card violet">
-          <div class="month-stat-value">${activeStudentCount}</div>
-          <div class="month-stat-label">Bé đang dạy</div>
-        </div>
-        <div class="month-stat-card green">
-          <div class="month-stat-value">${formatNumber(totalSlots)}</div>
-          <div class="month-stat-label">Ca đã học</div>
-        </div>
-        <div class="month-stat-card blue">
-          <div class="month-stat-value">${formatNumber(totalPendingSlots)}</div>
-          <div class="month-stat-label">Ca chưa chấm</div>
-        </div>
-        <div class="month-stat-card red">
-          <div class="month-stat-value">${formatNumber(debtSlots)}</div>
-          <div class="month-stat-label">Ca còn nợ</div>
-        </div>
-        <div class="month-stat-card amber">
-          <div class="month-stat-value">${fmtMoney(totalIncome)}</div>
-          <div class="month-stat-label">Thu nhập tạm tính</div>
-        </div>
-      </div>
-
+    <section class="month-overview" aria-label="Tình trạng từng học sinh">
       <div class="month-student-panel">
+        <div class="month-student-title">
+          <span>Tình trạng từng học sinh</span>
+          <small>${formatNumber(absentBusySlots)} ca nghỉ/bận</small>
+        </div>
         <div class="student-toolbar" style="margin-bottom:12px">
           <div class="student-search-wrap">
             <span class="student-search-icon" aria-hidden="true">⌕</span>
@@ -136,10 +109,6 @@ function _draw(el) {
             <option value="name-asc" ${_moSort === 'name-asc' ? 'selected' : ''}>Tên A → Z</option>
             <option value="time-asc" ${_moSort === 'time-asc' ? 'selected' : ''}>Giờ học</option>
           </select>
-        </div>
-        <div class="month-student-title">
-          <span>Tình trạng từng học sinh</span>
-          <small>${formatNumber(absentBusySlots)} ca nghỉ/bận</small>
         </div>
         <div class="mo-student-list-slot">${priorityRows.length ? priorityRows.map(rowTemplate).join('') : `
           <div class="text-muted fs-13" style="padding:10px 0;text-align:center">Chưa có học sinh</div>

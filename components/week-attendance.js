@@ -77,7 +77,7 @@ function draw(el) {
           <div>
             <div class="section-label">Chấm công tuần</div>
           </div>
-          <button class="btn-sm" data-action="add-manual">+ Thêm buổi</button>
+          <button class="btn-link-primary" data-action="add-manual">+ Thêm buổi</button>
         </div>
         <div class="week-attendance-toolbar">
           <button class="icon-btn" data-action="prev-week" aria-label="Tuần trước"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M15 6C15 6 9.00001 10.4189 9 12C8.99999 13.5812 15 18 15 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -171,7 +171,7 @@ function mobileTemplate(students, dates, sessions) {
                 <span>Bắt đầu ${st.schedTime || '--:--'}</span>
               </div>
               <span class="week-mobile-student-arrow" aria-hidden="true">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="transform:rotate(90deg)"><path d="M9.00005 6C9.00005 6 15 10.4189 15 12C15 13.5812 9 18 9 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9.00005 6C9.00005 6 15 10.4189 15 12C15 13.5812 9 18 9 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </span>
             </button>
             <div class="week-calendar-grid" role="group" aria-label="Lịch chấm công tuần của ${escapeHTML(st.name)}" ${isCollapsed ? 'hidden' : ''}>
@@ -287,14 +287,15 @@ function bindListEvents(el, dates) {
   el.querySelectorAll('[data-attendance-cell]').forEach(cell => {
     cell.addEventListener('click', () => openAttendanceModal(el, cell.dataset));
   });
-  el.querySelectorAll('[data-session-toggle]').forEach(button => {
-    button.addEventListener('click', () => {
-      const item = button.closest('[data-session-note-item]');
-      const body = item?.querySelector('.session-note-content');
-      if (!item || !body) return;
-      const isOpen = item.classList.toggle('is-open');
-      body.hidden = !isOpen;
-      button.setAttribute('aria-expanded', String(isOpen));
+
+  // Toggle mở rộng / thu gọn bảng chấm công từng học sinh (mobile)
+  el.querySelectorAll('[data-action="toggle-week-student"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const studentId = btn.dataset.studentId;
+      if (!studentId) return;
+      if (collapsedStudentIds.has(studentId)) collapsedStudentIds.delete(studentId);
+      else collapsedStudentIds.add(studentId);
+      drawList(el);
     });
   });
 }
@@ -323,22 +324,12 @@ function bindEvents(el, dates) {
     addManualSession(el, dates);
   });
 
-  el.querySelectorAll('[data-action="toggle-week-student"]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const studentId = btn.dataset.studentId;
-      if (!studentId) return;
-      if (collapsedStudentIds.has(studentId)) collapsedStudentIds.delete(studentId);
-      else collapsedStudentIds.add(studentId);
-      draw(el);
-    });
-  });
-
   el.querySelectorAll('[data-action="open-attendance"]').forEach(btn => {
     btn.addEventListener('click', () => openAttendanceModal(el, btn.dataset.studentId, btn.dataset.date));
   });
 }
 
-function openAttendanceModal(root, studentId, date) {
+function openAttendanceModal(root, studentId, date, overrideTime) {
   if (isFutureDate(date)) {
     alert('Không thể chấm công cho ngày trong tương lai.');
     return;
@@ -369,7 +360,7 @@ function openAttendanceModal(root, studentId, date) {
       <div class="attendance-modal-head">
         <div>
           <strong>${escapeHTML(st.name)}</strong>
-          <span>${formatFullDate(date)} · ${st.schedTime || '--:--'}</span>
+          <span>${formatFullDate(date)} · ${overrideTime || st.schedTime || '--:--'}</span>
         </div>
         <button class="attendance-modal-close" data-action="close-attendance" aria-label="Đóng"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M15 5L5 15M5 5L15 15" stroke="#454B50" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       </div>
@@ -632,27 +623,98 @@ function rollbackMakeupAllocations(existing) {
 }
 
 function addManualSession(root, dates) {
-  const students = Store.get('students');
-  const list = students.map(s => `${s.id}: ${displayName(s)}`).join('\n');
-  const sel = prompt('Nhập ID hoặc tên học sinh:\n' + list);
-  if (!sel) return;
+  const students = Store.get('students').filter(s => s.status !== 'stopped');
+  const today = todayStr();
 
-  const keyword = sel.trim().toLowerCase();
-  const st = students.find(s =>
-    s.id.toLowerCase() === keyword || s.name.toLowerCase().includes(keyword)
+  // Tạo bottom sheet
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay open';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', 'Thêm buổi học ngoài lịch');
+
+  // Ngày mặc định: hôm nay hoặc ngày cuối trong tuần không phải tương lai
+  const defaultDate = [...dates].reverse().find(d => d.str <= today)?.str || today;
+
+  overlay.innerHTML = `
+    <div class="modal student-modal">
+      <div class="modal-header">
+        <h2 class="modal-title">Thêm buổi học</h2>
+        <button class="modal-close" type="button" data-action="close-add-session" aria-label="Đóng">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M15 5L5 15M5 5L15 15" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+      <div class="modal-body" style="padding:0 16px 16px">
+        <div class="form-group">
+          <label class="form-label">Học sinh *</label>
+          <div class="sm-field-wrap">
+            <select class="form-input" id="asStudent">
+              <option value="">Chọn học sinh</option>
+              ${students.map(s => `<option value="${escapeHTML(s.id)}">${escapeHTML(displayName(s))}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="form-row sm-birth-gender-row">
+          <div class="form-group">
+            <label class="form-label">Ngày học *</label>
+            <div class="sm-field-wrap">
+              <input class="form-input" id="asDate" type="date" value="${defaultDate}">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Giờ bắt đầu *</label>
+            <div class="sm-field-wrap">
+              <input class="form-input" id="asTime" type="time" value="08:00">
+            </div>
+          </div>
+        </div>
+        <p style="font-size:12px;color:var(--ink-3);margin:0 0 16px">Buổi học ngoài lịch — không tính vào lịch cố định của học sinh.</p>
+        <div id="asError" style="color:var(--red-d,#e53e3e);font-size:13px;margin-bottom:8px;display:none"></div>
+      </div>
+      <div class="modal-footer" style="display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--border)">
+        <button class="btn btn-outline" style="flex:1" type="button" data-action="close-add-session">Hủy</button>
+        <button class="btn btn-primary" style="flex:2" type="button" id="asSubmit">Tiếp tục</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+  document.body.classList.add('modal-open');
+
+  function closeSheet() {
+    document.body.removeChild(overlay);
+    document.body.classList.remove('modal-open');
+  }
+
+  overlay.querySelectorAll('[data-action="close-add-session"]').forEach(b =>
+    b.addEventListener('click', closeSheet)
   );
-  if (!st) return alert('Không tìm thấy học sinh');
 
-  const defaultDate = dates.find(d => (st.schedDays || []).includes(d.date.getDay()))?.str || dates[0]?.str;
-  const inputDate = prompt('Nhập ngày cần thêm trong tuần, định dạng YYYY-MM-DD:', defaultDate);
-  if (!inputDate) return;
+  // Auto-fill giờ khi chọn học sinh
+  overlay.querySelector('#asStudent').addEventListener('change', e => {
+    const st = students.find(s => s.id === e.target.value);
+    if (st?.schedTime) overlay.querySelector('#asTime').value = st.schedTime;
+  });
 
-  const isInWeek = dates.some(d => d.str === inputDate.trim());
-  if (!isInWeek) return alert('Ngày này không nằm trong tuần đang xem');
-  if (isFutureDate(inputDate.trim())) return alert('Không thể thêm/chấm công cho ngày trong tương lai');
-  if (isBeforeStudentStart(st, inputDate.trim())) return alert('Ngày này trước ngày bắt đầu học của học sinh');
+  overlay.querySelector('#asSubmit').addEventListener('click', () => {
+    const stId   = overlay.querySelector('#asStudent').value;
+    const date   = overlay.querySelector('#asDate').value;
+    const time   = overlay.querySelector('#asTime').value;
+    const errEl  = overlay.querySelector('#asError');
 
-  openAttendanceModal(root, st.id, inputDate.trim());
+    const showErr = msg => { errEl.textContent = msg; errEl.style.display = 'block'; };
+    errEl.style.display = 'none';
+
+    if (!stId)   return showErr('Vui lòng chọn học sinh.');
+    if (!date)   return showErr('Vui lòng nhập ngày học.');
+    if (!time)   return showErr('Vui lòng nhập giờ bắt đầu.');
+    if (date > today) return showErr('Không thể thêm buổi cho ngày trong tương lai.');
+
+    const st = students.find(s => s.id === stId);
+    if (isBeforeStudentStart(st, date)) return showErr('Ngày này trước ngày bắt đầu học của học sinh.');
+
+    closeSheet();
+    openAttendanceModal(root, stId, date, time);
+  });
 }
 
 function getWeekDates(start) {

@@ -208,6 +208,30 @@ function bindEvents(ctx) {
     exportWordReport(st, monthSessions, month.label, 'thang', content, weekReportsInMonth);
   });
 
+  // Copy nhận xét
+  page.querySelectorAll('[data-action^="copy-"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const mode = btn.dataset.action.replace('copy-', '').replace('-report', '');
+      const ta = page.querySelector(`[data-report-content="${mode}"]`);
+      const text = ta?.value?.trim();
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        const orig = btn.innerHTML;
+        btn.textContent = 'Đã sao chép!';
+        setTimeout(() => { btn.innerHTML = orig; }, 2000);
+      } catch { btn.textContent = 'Lỗi sao chép'; }
+    });
+  });
+
+  // Hiện copy khi textarea có nội dung
+  page.querySelectorAll('.ai-summary-textarea').forEach(ta => {
+    ta.addEventListener('input', () => {
+      const wrap = ta.closest('.ai-summary-card')?.querySelector('.ai-copy-wrap');
+      if (wrap) wrap.hidden = !ta.value.trim();
+    });
+  });
+
   bindSessionNoteToggles();
   bindInlineNoteEditors();
 }
@@ -238,6 +262,12 @@ function summaryTemplate({ st, sessions, report, mode, label, weekReports = [] }
       <div class="ai-summary-actions">
         <button class="btn btn-outline" data-action="ai-${mode}"><span class="emoji" aria-hidden="true">🤖</span> AI tạo nhận xét</button>
         <button class="btn btn-primary" data-action="save-${mode}-report">Lưu nhận xét</button>
+      </div>
+      <div class="ai-copy-wrap" ${draft ? '' : 'hidden'}>
+        <button class="btn-copy-report" type="button" data-action="copy-${mode}-report">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="1.5"/></svg>
+          Sao chép
+        </button>
       </div>
     </div>`;
 }
@@ -464,6 +494,8 @@ Yêu cầu bắt buộc:
       textarea.focus();
       textarea.style.borderColor = 'var(--violet)';
       setTimeout(() => { textarea.style.borderColor = ''; }, 1500);
+      // Hiện nút copy
+      textarea.closest('.ai-summary-card')?.querySelector('.ai-copy-wrap')?.removeAttribute('hidden');
     } else {
       throw new Error('Không có phản hồi từ AI');
     }
